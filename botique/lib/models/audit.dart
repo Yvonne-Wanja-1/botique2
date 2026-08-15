@@ -40,6 +40,30 @@ class AuditLog {
     required this.createdAt,
   });
 
+  factory AuditLog.fromJson(Map<String, dynamic> json) {
+    final action = switch (json['action'] as String?) {
+      'create' => AuditAction.create,
+      'update' => AuditAction.update,
+      'delete' => AuditAction.delete,
+      'approve' => AuditAction.approve,
+      'reject' => AuditAction.reject,
+      'adjust' => AuditAction.adjust,
+      'login' => AuditAction.login,
+      'logout' => AuditAction.logout,
+      _ => AuditAction.update,
+    };
+    return AuditLog(
+      id: json['id'] as String,
+      staffName: json['actorName'] as String? ?? json['staffName'] as String? ?? '',
+      action: action,
+      resource: json['resource'] as String? ?? '',
+      description: json['description'] as String? ?? '',
+      previousValue: json['previousValue']?.toString(),
+      newValue: json['newValue']?.toString(),
+      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
+    );
+  }
+
   final String id;
   final String staffName;
   final AuditAction action;

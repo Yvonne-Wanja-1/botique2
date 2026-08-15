@@ -12,6 +12,21 @@ class Review {
     required this.createdAt,
   });
 
+  factory Review.fromJson(Map<String, dynamic> json) {
+    return Review(
+      id: json['id'] as String,
+      productId: json['productId'] as String,
+      customerId: json['customerId'] as String? ?? '',
+      customerName: json['customerName'] as String? ?? 'Customer',
+      rating: (json['rating'] as num?)?.toDouble() ?? 0,
+      comment: json['comment'] as String? ?? '',
+      isVerifiedPurchase: json['isVerifiedPurchase'] == true,
+      isApproved: json['isApproved'] != false,
+      isReported: json['isReported'] == true,
+      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
+    );
+  }
+
   final String id;
   final String productId;
   final String customerId;
