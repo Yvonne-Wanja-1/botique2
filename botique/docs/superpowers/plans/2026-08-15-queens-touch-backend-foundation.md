@@ -1884,3 +1884,4420 @@ Run: `npm test`
 Expected: PASS.
 
 **Verification checkpoint:** `npm test` green.
+
+---
+
+### Task 10: Products vertical slice
+
+**Files:**
+- Create: `backend/src/repositories/catalogRepository.ts`
+- Create: `backend/src/repositories/productRepository.ts`
+- Create: `backend/src/services/productService.ts`
+- Create: `backend/src/controllers/productController.ts`
+- Create: `backend/src/routes/productRouter.ts`
+- Modify: `backend/src/app.ts`
+- Create: `backend/src/routes/productRouter.test.ts`
+
+**Interfaces:**
+- Consumes: `Pool`, `ok`, `asyncHandler`, models, `NotFoundError`, `ConflictError`, `productSchema`, `validateBody`, `requireRole`.
+- Produces:
+  - `CategoryRepository(pool)` (`getRootCategories`, `getSubcategories`, `getById`, `create`), `BrandRepository(pool)` (`getAll`, `getById`).
+  - `ProductRepository(pool)` with `ProductSearchParams`, `CreateProductInput`, `VariantInput` types; methods `search(params)`, `findById(id)`, `create(input)`, `update(id, input)`, `setStatus(id, status)`, `getReviews(productId)`.
+  - `ProductService(productRepo)` (`listFeatured`, `listNewArrivals`, `listBestSellers`, `listTrending`, `listRecommended`, `search`, `getById`, `create`, `update`, `deactivate`, `getReviews`).
+  - `productRouter(productService): Router` with `GET /`, `GET /:id`, `GET /:id/reviews`, `POST /` (roles `super_admin|store_manager|inventory_staff`), `PATCH /:id` (same roles), `DELETE /:id` (same roles, soft-deactivate).
+
+- [ ] **Step 1: Write the failing route test**
+
+`backend/src/routes/productRouter.test.ts`:
+```ts
+import request from 'supertest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { Pool } from 'pg';
+import { loadPgMem, schemaPath } from '../db/pgMem.js';
+import { createApp } from '../app.js';
+
+describe('products API', () => {
+  let pool: Pool;
+  let app: ReturnType<typeof createApp>;
+
+  beforeAll(async () => {
+    pool = loadPgMem(schemaPath());
+    app = createApp(pool);
+  });
+
+  afterAll(async () => {
+    await pool.end();
+  });
+
+  it('lists featured products', async () => {
+    const res = await request(app)
+      .get('/api/products?featured=true')
+      .set('x-user-id', '00000000-0000-0000-0000-000000000201');
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.products.length).toBeGreaterThan(0);
+  });
+
+  it('gets a product by id with variants', async () => {
+    const res = await request(app)
+      .get('/api/products/00000000-0000-0000-0000-000000000501')
+      .set('x-user-id', '00000000-0000-0000-0000-000000000201');
+    expect(res.status).toBe(200);
+    expect(res.body.data.name).toBe('Rosé Midi Wrap Dress');
+    expect(res.body.data.variants.length).toBe(5);
+  });
+
+  it('rejects creating a product without staff role', async () => {
+    const res = await request(app)
+      .post('/api/products')
+      .set('x-user-id', '00000000-0000-0000-0000-000000000201')
+      .send({ name: 'X', slug: 'x', categoryId: '00000000-0000-0000-0000-000000000402', brandId: '00000000-0000-0000-0000-000000000301', basePrice: 5 });
+    expect(res.status).toBe(403);
+  });
+
+  it('creates a product as store_manager', async () => {
+    const res = await request(app)
+      .post('/api/products')
+      .set('x-user-id', '00000000-0000-0000-0000-000000000203')
+      .set('x-user-role', 'store_manager')
+      .send({
+        name: 'Test Gown', slug: 'test-gown', description: 'd',
+        categoryId: '00000000-0000-0000-0000-000000000402',
+        brandId: '00000000-0000-0000-0000-000000000301',
+        basePrice: 55, discountPrice: 45, stockThreshold: 5,
+        variants: [{ sku: 'TG-1', size: 'M', stockQty: 4 }],
+      });
+    expect(res.status).toBe(201);
+    expect(res.body.data.variants[0].stockQty).toBe(4);
+  });
+});
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `npm test`
+Expected: FAIL — `/api/products` returns 404 (route not registered).
+
+- [ ] **Step 3: Write `backend/src/repositories/catalogRepository.ts`**
+
+```ts
+import { randomUUID } from 'node:crypto';
+import type { Pool } from 'pg';
+import type { Brand, Category } from '../models/index.js';
+
+function mapCategory(row: Record<string, unknown>): Category {
+  return {
+    id: String(row.id),
+    parentId: row.parent_id ? String(row.parent_id) : null,
+    name: String(row.name),
+    slug: String(row.slug),
+    description: row.description ? String(row.description) : null,
+    imageUrl: row.image_url ? String(row.image_url) : null,
+    isActive: Boolean(row.is_active),
+  };
+}
+
+function mapBrand(row: Record<string, unknown>): Brand {
+  return {
+    id: String(row.id),
+    name: String(row.name),
+    slug: String(row.slug),
+    logoUrl: row.logo_url ? String(row.logo_url) : null,
+    isActive: Boolean(row.is_active),
+  };
+}
+
+export class CategoryRepository {
+  constructor(private pool: Pool) {}
+
+  async getRootCategories(): Promise<Category[]> {
+    const res = await this.pool.query(
+      'SELECT * FROM categories WHERE parent_id IS NULL AND is_active = TRUE ORDER BY name',
+    );
+    return res.rows.map(mapCategory);
+  }
+
+  async getSubcategories(parentId: string): Promise<Category[]> {
+    const res = await this.pool.query(
+      'SELECT * FROM categories WHERE parent_id = $1 AND is_active = TRUE ORDER BY name',
+      [parentId],
+    );
+    return res.rows.map(mapCategory);
+  }
+
+  async getById(id: string): Promise<Category | null> {
+    const res = await this.pool.query('SELECT * FROM categories WHERE id = $1', [id]);
+    return res.rows.length ? mapCategory(res.rows[0]) : null;
+  }
+
+  async create(input: {
+    name: string;
+    slug: string;
+    parentId?: string | null;
+    description?: string | null;
+    imageUrl?: string | null;
+  }): Promise<Category> {
+    const res = await this.pool.query(
+      `INSERT INTO categories (id, parent_id, name, slug, description, image_url)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [randomUUID(), input.parentId ?? null, input.name, input.slug, input.description ?? null, input.imageUrl ?? null],
+    );
+    return mapCategory(res.rows[0]);
+  }
+}
+
+export class BrandRepository {
+  constructor(private pool: Pool) {}
+
+  async getAll(): Promise<Brand[]> {
+    const res = await this.pool.query('SELECT * FROM brands WHERE is_active = TRUE ORDER BY name');
+    return res.rows.map(mapBrand);
+  }
+
+  async getById(id: string): Promise<Brand | null> {
+    const res = await this.pool.query('SELECT * FROM brands WHERE id = $1', [id]);
+    return res.rows.length ? mapBrand(res.rows[0]) : null;
+  }
+}
+```
+
+- [ ] **Step 4: Write `backend/src/repositories/productRepository.ts`**
+
+```ts
+import { randomUUID } from 'node:crypto';
+import type { Pool } from 'pg';
+import type { Product, ProductRow, ProductVariant, ReviewRow } from '../models/index.js';
+import { toNumber } from '../models/index.js';
+import { NotFoundError } from '../utils/errors.js';
+
+export interface ProductSearchParams {
+  categoryId?: string;
+  brandId?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  sizes?: string[];
+  colors?: string[];
+  availability?: boolean;
+  minRating?: number;
+  onSaleOnly?: boolean;
+  search?: string;
+  featured?: boolean;
+  newArrival?: boolean;
+  bestSeller?: boolean;
+  trending?: boolean;
+  sort?: 'newest' | 'price_low_high' | 'price_high_low' | 'best_selling' | 'best_rated' | 'discount';
+  page?: number;
+  pageSize?: number;
+}
+
+export interface VariantInput {
+  sku: string;
+  size?: string | null;
+  color?: string | null;
+  shade?: string | null;
+  price?: number | null;
+  stockQty: number;
+}
+
+export interface CreateProductInput {
+  name: string;
+  slug: string;
+  description: string;
+  categoryId: string;
+  brandId: string;
+  basePrice: number;
+  discountPrice?: number | null;
+  stockThreshold: number;
+  isFeatured: boolean;
+  isNewArrival: boolean;
+  isBestSeller: boolean;
+  isTrending: boolean;
+  specifications: Record<string, string>;
+  variants: VariantInput[];
+}
+
+const ORDER_BY: Record<NonNullable<ProductSearchParams['sort']>, string> = {
+  newest: 'created_at DESC',
+  price_low_high: 'COALESCE(discount_price, base_price) ASC',
+  price_high_low: 'COALESCE(discount_price, base_price) DESC',
+  best_selling: 'sold_count DESC',
+  best_rated: 'rating DESC',
+  discount: 'CASE WHEN discount_price IS NULL THEN 0 ELSE (base_price - discount_price) END DESC',
+};
+
+function mapProductRow(row: ProductRow): Product {
+  return {
+    ...row,
+    discountPrice: row.discountPrice === null ? null : Number(row.discountPrice),
+    basePrice: Number(row.basePrice),
+    rating: Number(row.rating),
+    specifications: typeof row.specifications === 'string' ? JSON.parse(row.specifications) : row.specifications,
+    variants: [],
+    images: [],
+  };
+}
+
+export class ProductRepository {
+  constructor(private pool: Pool) {}
+
+  async search(params: ProductSearchParams): Promise<{ rows: Product[]; total: number }> {
+    const conditions: string[] = ["p.status = 'active'"];
+    const values: unknown[] = [];
+
+    if (params.featured) conditions.push('p.is_featured = TRUE');
+    if (params.newArrival) conditions.push('p.is_new_arrival = TRUE');
+    if (params.bestSeller) conditions.push('p.is_best_seller = TRUE');
+    if (params.trending) conditions.push('p.is_trending = TRUE');
+    if (params.onSaleOnly) conditions.push('p.discount_price IS NOT NULL');
+    if (params.categoryId) {
+      values.push(params.categoryId);
+      conditions.push(
+        `(p.category_id = $${values.length} OR p.category_id IN (SELECT id FROM categories WHERE parent_id = $${values.length}))`,
+      );
+    }
+    if (params.brandId) {
+      values.push(params.brandId);
+      conditions.push(`p.brand_id = $${values.length}`);
+    }
+    if (params.minPrice !== undefined) {
+      values.push(params.minPrice);
+      conditions.push(`COALESCE(p.discount_price, p.base_price) >= $${values.length}`);
+    }
+    if (params.maxPrice !== undefined) {
+      values.push(params.maxPrice);
+      conditions.push(`COALESCE(p.discount_price, p.base_price) <= $${values.length}`);
+    }
+    if (params.minRating !== undefined) {
+      values.push(params.minRating);
+      conditions.push(`p.rating >= $${values.length}`);
+    }
+    if (params.availability === true) {
+      conditions.push(`EXISTS (SELECT 1 FROM product_variants v WHERE v.product_id = p.id AND v.stock_qty > 0 AND v.is_active)`);
+    }
+    if (params.availability === false) {
+      conditions.push(`NOT EXISTS (SELECT 1 FROM product_variants v WHERE v.product_id = p.id AND v.stock_qty > 0 AND v.is_active)`);
+    }
+    if (params.sizes?.length) {
+      values.push(params.sizes);
+      conditions.push(`EXISTS (SELECT 1 FROM product_variants v WHERE v.product_id = p.id AND v.size = ANY($${values.length}))`);
+    }
+    if (params.colors?.length) {
+      values.push(params.colors);
+      conditions.push(`EXISTS (SELECT 1 FROM product_variants v WHERE v.product_id = p.id AND v.color = ANY($${values.length}))`);
+    }
+    if (params.search) {
+      values.push(`%${params.search.toLowerCase()}%`);
+      conditions.push(`(LOWER(p.name) LIKE $${values.length} OR LOWER(p.description) LIKE $${values.length})`);
+    }
+
+    const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    const sort = params.sort ?? 'newest';
+    const page = Math.max(1, params.page ?? 1);
+    const pageSize = Math.min(100, Math.max(1, params.pageSize ?? 20));
+    const offset = (page - 1) * pageSize;
+
+    const countRes = await this.pool.query(
+      `SELECT count(*)::int AS n FROM products p ${whereClause}`,
+      values,
+    );
+    const dataRes = await this.pool.query(
+      `SELECT p.* FROM products p ${whereClause} ORDER BY ${ORDER_BY[sort]} LIMIT $${values.length + 1} OFFSET $${values.length + 2}`,
+      [...values, pageSize, offset],
+    );
+
+    const products = dataRes.rows.map(mapProductRow);
+    if (products.length) {
+      const ids = products.map((p) => p.id);
+      const varRes = await this.pool.query(
+        'SELECT * FROM product_variants WHERE product_id = ANY($1) ORDER BY created_at',
+        [ids],
+      );
+      const imgRes = await this.pool.query(
+        'SELECT product_id, url FROM product_images WHERE product_id = ANY($1) ORDER BY position',
+        [ids],
+      );
+      const variantsByProduct = new Map<string, ProductVariant[]>();
+      for (const row of varRes.rows) {
+        const list = variantsByProduct.get(row.product_id) ?? [];
+        list.push({
+          id: row.id,
+          productId: row.product_id,
+          sku: row.sku,
+          size: row.size,
+          color: row.color,
+          shade: row.shade,
+          price: row.price === null ? null : Number(row.price),
+          stockQty: Number(row.stock_qty),
+          isActive: row.is_active,
+        });
+        variantsByProduct.set(row.product_id, list);
+      }
+      const imagesByProduct = new Map<string, string[]>();
+      for (const row of imgRes.rows) {
+        const list = imagesByProduct.get(row.product_id) ?? [];
+        list.push(row.url);
+        imagesByProduct.set(row.product_id, list);
+      }
+      for (const p of products) {
+        p.variants = variantsByProduct.get(p.id) ?? [];
+        p.images = imagesByProduct.get(p.id) ?? [];
+      }
+    }
+
+    return { rows: products, total: toNumber(countRes.rows[0]?.n ?? 0) };
+  }
+
+  async findById(id: string): Promise<Product | null> {
+    const res = await this.pool.query('SELECT * FROM products WHERE id = $1', [id]);
+    if (!res.rows.length) return null;
+    const product = mapProductRow(res.rows[0]);
+    const varRes = await this.pool.query(
+      'SELECT * FROM product_variants WHERE product_id = $1 ORDER BY created_at',
+      [id],
+    );
+    product.variants = varRes.rows.map((r) => ({
+      id: r.id,
+      productId: r.product_id,
+      sku: r.sku,
+      size: r.size,
+      color: r.color,
+      shade: r.shade,
+      price: r.price === null ? null : Number(r.price),
+      stockQty: Number(r.stock_qty),
+      isActive: r.is_active,
+    }));
+    const imgRes = await this.pool.query(
+      'SELECT url FROM product_images WHERE product_id = $1 ORDER BY position',
+      [id],
+    );
+    product.images = imgRes.rows.map((r) => r.url);
+    return product;
+  }
+
+  async create(input: CreateProductInput): Promise<Product> {
+    const productId = randomUUID();
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        `INSERT INTO products (id, name, slug, description, category_id, brand_id, base_price,
+           discount_price, stock_threshold, is_featured, is_new_arrival, is_best_seller, is_trending, specifications)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+        [
+          productId, input.name, input.slug, input.description, input.categoryId, input.brandId,
+          input.basePrice, input.discountPrice ?? null, input.stockThreshold,
+          input.isFeatured, input.isNewArrival, input.isBestSeller, input.isTrending,
+          JSON.stringify(input.specifications),
+        ],
+      );
+      for (const v of input.variants) {
+        await client.query(
+          `INSERT INTO product_variants (id, product_id, sku, size, color, shade, price, stock_qty)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+          [randomUUID(), productId, v.sku, v.size ?? null, v.color ?? null, v.shade ?? null, v.price ?? null, v.stockQty],
+        );
+      }
+      await client.query('COMMIT');
+      const created = await this.findById(productId);
+      if (!created) throw new NotFoundError('Product was not created');
+      return created;
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+
+  async update(id: string, input: Partial<CreateProductInput>): Promise<Product | null> {
+    await this.pool.query(
+      `UPDATE products SET
+         name = COALESCE($2, name),
+         slug = COALESCE($3, slug),
+         description = COALESCE($4, description),
+         category_id = COALESCE($5, category_id),
+         brand_id = COALESCE($6, brand_id),
+         base_price = COALESCE($7, base_price),
+         discount_price = $8,
+         stock_threshold = COALESCE($9, stock_threshold),
+         is_featured = COALESCE($10, is_featured),
+         is_new_arrival = COALESCE($11, is_new_arrival),
+         is_best_seller = COALESCE($12, is_best_seller),
+         is_trending = COALESCE($13, is_trending),
+         updated_at = now()
+       WHERE id = $1`,
+      [
+        id, input.name ?? null, input.slug ?? null, input.description ?? null,
+        input.categoryId ?? null, input.brandId ?? null, input.basePrice ?? null,
+        input.discountPrice === undefined ? null : input.discountPrice,
+        input.stockThreshold ?? null, input.isFeatured ?? null, input.isNewArrival ?? null,
+        input.isBestSeller ?? null, input.isTrending ?? null,
+      ],
+    );
+    return this.findById(id);
+  }
+
+  async setStatus(id: string, status: 'active' | 'inactive' | 'discontinued'): Promise<boolean> {
+    const res = await this.pool.query(
+      'UPDATE products SET status = $2, updated_at = now() WHERE id = $1',
+      [id, status],
+    );
+    return (res.rowCount ?? 0) > 0;
+  }
+
+  async getReviews(productId: string): Promise<ReviewRow[]> {
+    const res = await this.pool.query(
+      `SELECT id, product_id, customer_id, rating, comment, is_verified_purchase, is_approved, is_reported, created_at
+       FROM reviews WHERE product_id = $1 AND is_approved = TRUE ORDER BY created_at DESC`,
+      [productId],
+    );
+    return res.rows.map((r) => ({
+      id: r.id,
+      productId: r.product_id,
+      customerId: r.customer_id,
+      rating: Number(r.rating),
+      comment: r.comment,
+      isVerifiedPurchase: r.is_verified_purchase,
+      isApproved: r.is_approved,
+      isReported: r.is_reported,
+      createdAt: r.created_at,
+    }));
+  }
+}
+```
+
+- [ ] **Step 5: Write `backend/src/services/productService.ts`**
+
+```ts
+import type { Product } from '../models/index.js';
+import { NotFoundError } from '../utils/errors.js';
+import type {
+  CreateProductInput,
+  ProductRepository,
+  ProductSearchParams,
+} from '../repositories/productRepository.js';
+
+export class ProductService {
+  constructor(private productRepo: ProductRepository) {}
+
+  private flag(flag: 'featured' | 'newArrival' | 'bestSeller' | 'trending') {
+    return this.productRepo.search({ [flag]: true, sort: 'newest', page: 1, pageSize: 20 });
+  }
+
+  listFeatured() {
+    return this.flag('featured');
+  }
+  listNewArrivals() {
+    return this.flag('newArrival');
+  }
+  listBestSellers() {
+    return this.flag('bestSeller');
+  }
+  listTrending() {
+    return this.flag('trending');
+  }
+  listRecommended() {
+    return this.productRepo.search({ sort: 'best_selling', page: 1, pageSize: 10 });
+  }
+  search(params: ProductSearchParams) {
+    return this.productRepo.search(params);
+  }
+  async getById(id: string): Promise<Product> {
+    const product = await this.productRepo.findById(id);
+    if (!product) throw new NotFoundError('Product not found');
+    return product;
+  }
+  create(input: CreateProductInput) {
+    return this.productRepo.create(input);
+  }
+  async update(id: string, input: Partial<CreateProductInput>) {
+    const product = await this.productRepo.update(id, input);
+    if (!product) throw new NotFoundError('Product not found');
+    return product;
+  }
+  async deactivate(id: string): Promise<void> {
+    const ok = await this.productRepo.setStatus(id, 'inactive');
+    if (!ok) throw new NotFoundError('Product not found');
+  }
+  getReviews(productId: string) {
+    return this.productRepo.getReviews(productId);
+  }
+}
+```
+
+- [ ] **Step 6: Write `backend/src/controllers/productController.ts`**
+
+```ts
+import type { Request, Response } from 'express';
+import type { ProductService } from '../services/productService.js';
+import { ok } from '../utils/apiResponse.js';
+
+export function productController(productService: ProductService) {
+  return {
+    async list(req: Request, res: Response): Promise<void> {
+      const q = req.query;
+      const result = await productService.search({
+        featured: q.featured === 'true',
+        newArrival: q.newArrival === 'true',
+        bestSeller: q.bestSeller === 'true',
+        trending: q.trending === 'true',
+        onSaleOnly: q.onSale === 'true',
+        availability: q.availability === 'true' ? true : q.availability === 'false' ? false : undefined,
+        categoryId: q.categoryId ? String(q.categoryId) : undefined,
+        brandId: q.brandId ? String(q.brandId) : undefined,
+        minPrice: q.minPrice ? Number(q.minPrice) : undefined,
+        maxPrice: q.maxPrice ? Number(q.maxPrice) : undefined,
+        minRating: q.minRating ? Number(q.minRating) : undefined,
+        sizes: q.sizes ? String(q.sizes).split(',') : undefined,
+        colors: q.colors ? String(q.colors).split(',') : undefined,
+        search: q.q ? String(q.q) : undefined,
+        sort: q.sort as never,
+        page: q.page ? Number(q.page) : undefined,
+        pageSize: q.pageSize ? Number(q.pageSize) : undefined,
+      });
+      ok(res, result);
+    },
+
+    async get(req: Request, res: Response): Promise<void> {
+      ok(res, await productService.getById(req.params.id));
+    },
+
+    async create(req: Request, res: Response): Promise<void> {
+      ok(res, await productService.create(req.body), 201);
+    },
+
+    async update(req: Request, res: Response): Promise<void> {
+      ok(res, await productService.update(req.params.id, req.body));
+    },
+
+    async deactivate(req: Request, res: Response): Promise<void> {
+      await productService.deactivate(req.params.id);
+      ok(res, { id: req.params.id, status: 'inactive' });
+    },
+
+    async reviews(req: Request, res: Response): Promise<void> {
+      ok(res, await productService.getReviews(req.params.id));
+    },
+  };
+}
+```
+
+- [ ] **Step 7: Write `backend/src/routes/productRouter.ts`**
+
+```ts
+import { Router } from 'express';
+import { productController } from '../controllers/productController.js';
+import { requireRole } from '../middleware/authStub.js';
+import { validateBody } from '../middleware/validate.js';
+import { productSchema } from '../validation/schemas.js';
+import type { ProductService } from '../services/productService.js';
+import { asyncHandler } from '../utils/asyncHandler.js';
+
+export function productRouter(productService: ProductService): Router {
+  const router = Router();
+  const c = productController(productService);
+  const staffRoles = requireRole('super_admin', 'store_manager', 'inventory_staff');
+
+  router.get('/', asyncHandler(c.list));
+  router.get('/:id', asyncHandler(c.get));
+  router.get('/:id/reviews', asyncHandler(c.reviews));
+  router.post('/', staffRoles, validateBody(productSchema), asyncHandler(c.create));
+  router.patch('/:id', staffRoles, validateBody(productSchema.partial()), asyncHandler(c.update));
+  router.delete('/:id', staffRoles, asyncHandler(c.deactivate));
+
+  return router;
+}
+```
+
+- [ ] **Step 8: Register the router in `backend/src/app.ts`**
+
+Add imports:
+```ts
+import { ProductRepository } from './repositories/productRepository.js';
+import { ProductService } from './services/productService.js';
+import { productRouter } from './routes/productRouter.js';
+```
+Add wiring before the 404 handler:
+```ts
+  const productRepo = new ProductRepository(pool);
+  const productService = new ProductService(productRepo);
+  app.use('/api/products', productRouter(productService));
+```
+`app.use('/api', authStub);` stays registered BEFORE the domain routers.
+
+- [ ] **Step 9: Run the tests to verify they pass**
+
+Run: `npm test`
+Expected: products API tests pass (featured list, get by id with variants, 403 for customer, 201 for manager).
+
+- [ ] **Step 10: Typecheck + full test run**
+
+Run: `npm run typecheck; npm test`
+Expected: green.
+
+**Verification checkpoint:** green.
+
+---
+
+### Task 11: Categories + Brands vertical slice
+
+**Files:**
+- Create: `backend/src/services/catalogService.ts`
+- Create: `backend/src/controllers/catalogController.ts`
+- Create: `backend/src/routes/catalogRouter.ts`
+- Modify: `backend/src/app.ts`
+- Create: `backend/src/routes/catalogRouter.test.ts`
+
+**Interfaces:**
+- Consumes: `CategoryRepository`, `BrandRepository` (Task 10).
+- Produces:
+  - `CatalogService(categoryRepo, brandRepo)` (`listRootCategories`, `listSubcategories`, `getCategory`, `listBrands`, `createCategory`).
+  - `catalogRouter(catalogService): Router` with `GET /categories`, `GET /categories/:parentId/subcategories`, `GET /brands`, `POST /categories` (roles `super_admin|store_manager`).
+
+- [ ] **Step 1: Write the failing test**
+
+`backend/src/routes/catalogRouter.test.ts`:
+```ts
+import request from 'supertest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { Pool } from 'pg';
+import { loadPgMem, schemaPath } from '../db/pgMem.js';
+import { createApp } from '../app.js';
+
+describe('catalog API', () => {
+  let pool: Pool;
+  let app: ReturnType<typeof createApp>;
+
+  beforeAll(async () => {
+    pool = loadPgMem(schemaPath());
+    app = createApp(pool);
+  });
+  afterAll(async () => {
+    await pool.end();
+  });
+
+  it('lists root categories', async () => {
+    const res = await request(app)
+      .get('/api/categories')
+      .set('x-user-id', '00000000-0000-0000-0000-000000000201');
+    expect(res.status).toBe(200);
+    const names = res.body.data.map((c: { name: string }) => c.name);
+    expect(names).toContain('Clothing');
+    expect(names).toContain('Cosmetics & Beauty');
+  });
+
+  it('lists subcategories', async () => {
+    const res = await request(app)
+      .get('/api/categories/00000000-0000-0000-0000-000000000401/subcategories')
+      .set('x-user-id', '00000000-0000-0000-0000-000000000201');
+    expect(res.status).toBe(200);
+    expect(res.body.data.length).toBeGreaterThan(0);
+  });
+
+  it('lists brands', async () => {
+    const res = await request(app)
+      .get('/api/brands')
+      .set('x-user-id', '00000000-0000-0000-0000-000000000201');
+    expect(res.status).toBe(200);
+    expect(res.body.data.length).toBe(6);
+  });
+});
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `npm test`
+Expected: FAIL — `/api/categories` returns 404.
+
+- [ ] **Step 3: Write `backend/src/services/catalogService.ts`**
+
+```ts
+import { NotFoundError } from '../utils/errors.js';
+import type { BrandRepository, CategoryRepository } from '../repositories/catalogRepository.js';
+
+export class CatalogService {
+  constructor(
+    private categoryRepo: CategoryRepository,
+    private brandRepo: BrandRepository,
+  ) {}
+
+  listRootCategories() {
+    return this.categoryRepo.getRootCategories();
+  }
+  listSubcategories(parentId: string) {
+    return this.categoryRepo.getSubcategories(parentId);
+  }
+  async getCategory(id: string) {
+    const category = await this.categoryRepo.getById(id);
+    if (!category) throw new NotFoundError('Category not found');
+    return category;
+  }
+  listBrands() {
+    return this.brandRepo.getAll();
+  }
+  createCategory(input: { name: string; slug: string; parentId?: string | null; description?: string | null; imageUrl?: string | null }) {
+    return this.categoryRepo.create(input);
+  }
+}
+```
+
+- [ ] **Step 4: Write `backend/src/controllers/catalogController.ts`**
+
+```ts
+import type { Request, Response } from 'express';
+import type { CatalogService } from '../services/catalogService.js';
+import { ok } from '../utils/apiResponse.js';
+
+export function catalogController(catalogService: CatalogService) {
+  return {
+    async rootCategories(_req: Request, res: Response): Promise<void> {
+      ok(res, await catalogService.listRootCategories());
+    },
+    async subcategories(req: Request, res: Response): Promise<void> {
+      ok(res, await catalogService.listSubcategories(req.params.parentId));
+    },
+    async brands(_req: Request, res: Response): Promise<void> {
+      ok(res, await catalogService.listBrands());
+    },
+    async createCategory(req: Request, res: Response): Promise<void> {
+      ok(res, await catalogService.createCategory(req.body), 201);
+    },
+  };
+}
+```
+
+- [ ] **Step 5: Write `backend/src/routes/catalogRouter.ts`**
+
+```ts
+import { Router } from 'express';
+import { catalogController } from '../controllers/catalogController.js';
+import { requireRole } from '../middleware/authStub.js';
+import { validateBody } from '../middleware/validate.js';
+import { categorySchema } from '../validation/schemas.js';
+import type { CatalogService } from '../services/catalogService.js';
+import { asyncHandler } from '../utils/asyncHandler.js';
+
+export function catalogRouter(catalogService: CatalogService): Router {
+  const router = Router();
+  const c = catalogController(catalogService);
+
+  router.get('/categories', asyncHandler(c.rootCategories));
+  router.get('/categories/:parentId/subcategories', asyncHandler(c.subcategories));
+  router.get('/brands', asyncHandler(c.brands));
+  router.post(
+    '/categories',
+    requireRole('super_admin', 'store_manager'),
+    validateBody(categorySchema),
+    asyncHandler(c.createCategory),
+  );
+
+  return router;
+}
+```
+
+- [ ] **Step 6: Register in `backend/src/app.ts`**
+
+```ts
+import { BrandRepository, CategoryRepository } from './repositories/catalogRepository.js';
+import { CatalogService } from './services/catalogService.js';
+import { catalogRouter } from './routes/catalogRouter.js';
+```
+```ts
+  const categoryRepo = new CategoryRepository(pool);
+  const brandRepo = new BrandRepository(pool);
+  const catalogService = new CatalogService(categoryRepo, brandRepo);
+  app.use('/api', catalogRouter(catalogService));
+```
+
+- [ ] **Step 7: Run tests to verify they pass**
+
+Run: `npm test`
+Expected: catalog tests pass.
+
+**Verification checkpoint:** green.
+
+---
+
+### Task 12: Inventory vertical slice
+
+**Files:**
+- Create: `backend/src/repositories/inventoryRepository.ts`
+- Create: `backend/src/services/inventoryService.ts`
+- Create: `backend/src/controllers/inventoryController.ts`
+- Create: `backend/src/routes/inventoryRouter.ts`
+- Modify: `backend/src/app.ts`
+- Create: `backend/src/routes/inventoryRouter.test.ts`
+
+**Interfaces:**
+- Consumes: `adjustInventorySchema`, models, `ConflictError`.
+- Produces:
+  - `InventoryRepository(pool)`:
+    - `listVariantInventory(stock?: 'low'|'out'|'all'): Promise<VariantStockRow[]>`
+    - `adjust(variantId, quantity, reason, changeType, staffUserId): Promise<{newQuantity, previousQuantity} | null>` — atomic `UPDATE ... SET stock_qty = stock_qty + $2 WHERE id=$1 AND stock_qty + $2 >= 0`; returns `null` if no row matched (insufficient stock); records an `inventory_transactions` row inside the same transaction.
+  - `InventoryService(inventoryRepo)` (`listVariantInventory`, `adjust` — throws `ConflictError('Insufficient stock for adjustment')` on `null`).
+  - `inventoryRouter(inventoryService): Router` with `GET /variants` (query `stock=low|out|all`) and `POST /variants/:variantId/adjust` (roles `super_admin|store_manager|inventory_staff`).
+
+- [ ] **Step 1: Write the failing test**
+
+`backend/src/routes/inventoryRouter.test.ts`:
+```ts
+import request from 'supertest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { Pool } from 'pg';
+import { loadPgMem, schemaPath } from '../db/pgMem.js';
+import { createApp } from '../app.js';
+
+describe('inventory API', () => {
+  let pool: Pool;
+  let app: ReturnType<typeof createApp>;
+
+  beforeAll(async () => {
+    pool = loadPgMem(schemaPath());
+    app = createApp(pool);
+  });
+  afterAll(async () => {
+    await pool.end();
+  });
+
+  const staff = {
+    'x-user-id': '00000000-0000-0000-0000-000000000205',
+    'x-user-role': 'inventory_staff',
+  };
+
+  it('lists variants with stock status', async () => {
+    const res = await request(app).get('/api/inventory/variants').set(staff);
+    expect(res.status).toBe(200);
+    expect(res.body.data.length).toBeGreaterThan(0);
+    expect(res.body.data[0]).toHaveProperty('isLowStock');
+  });
+
+  it('adjusts stock and records a transaction', async () => {
+    const before = await request(app).get('/api/inventory/variants').set(staff);
+    const variantId = before.body.data[0].variantId;
+
+    const res = await request(app)
+      .post(`/api/inventory/variants/${variantId}/adjust`)
+      .set(staff)
+      .send({ quantity: -2, reason: 'damaged stock', changeType: 'adjust' });
+    expect(res.status).toBe(200);
+    expect(res.body.data.newQuantity).toBe(before.body.data[0].stockQty - 2);
+
+    const tx = await pool.query(
+      'SELECT count(*)::int AS n FROM inventory_transactions WHERE variant_id = $1',
+      [variantId],
+    );
+    expect(tx.rows[0].n).toBe(1);
+  });
+
+  it('rejects reducing below zero', async () => {
+    const res = await request(app)
+      .post('/api/inventory/variants/00000000-0000-0000-0000-000000000601/adjust')
+      .set(staff)
+      .send({ quantity: -99999, reason: 'too much', changeType: 'adjust' });
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('CONFLICT');
+  });
+});
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `npm test`
+Expected: FAIL — `/api/inventory` returns 404.
+
+- [ ] **Step 3: Write `backend/src/repositories/inventoryRepository.ts`**
+
+```ts
+import { randomUUID } from 'node:crypto';
+import type { Pool } from 'pg';
+import { toNumber } from '../models/index.js';
+
+export interface VariantStockRow {
+  variantId: string;
+  productId: string;
+  productName: string;
+  sku: string;
+  size: string | null;
+  color: string | null;
+  shade: string | null;
+  stockQty: number;
+  stockThreshold: number;
+  isLowStock: boolean;
+  isOutOfStock: boolean;
+}
+
+export class InventoryRepository {
+  constructor(private pool: Pool) {}
+
+  async listVariantInventory(stock?: 'low' | 'out' | 'all'): Promise<VariantStockRow[]> {
+    const filter = {
+      low: 'AND v.stock_qty > 0 AND v.stock_qty <= p.stock_threshold',
+      out: 'AND v.stock_qty = 0',
+      all: '',
+    }[stock ?? 'all'];
+
+    const res = await this.pool.query(
+      `SELECT v.id AS variant_id, p.id AS product_id, p.name AS product_name, v.sku, v.size, v.color, v.shade,
+              v.stock_qty, p.stock_threshold,
+              (v.stock_qty > 0 AND v.stock_qty <= p.stock_threshold) AS is_low_stock,
+              (v.stock_qty = 0) AS is_out_of_stock
+       FROM product_variants v
+       JOIN products p ON p.id = v.product_id
+       WHERE v.is_active = TRUE ${filter}
+       ORDER BY p.name, v.sku`,
+    );
+    return res.rows.map((r) => ({
+      variantId: r.variant_id,
+      productId: r.product_id,
+      productName: r.product_name,
+      sku: r.sku,
+      size: r.size,
+      color: r.color,
+      shade: r.shade,
+      stockQty: toNumber(r.stock_qty),
+      stockThreshold: toNumber(r.stock_threshold),
+      isLowStock: Boolean(r.is_low_stock),
+      isOutOfStock: Boolean(r.is_out_of_stock),
+    }));
+  }
+
+  async adjust(
+    variantId: string,
+    quantity: number,
+    reason: string,
+    changeType: 'add' | 'reduce' | 'adjust' | 'purchase',
+    staffUserId: string | null,
+  ): Promise<{ newQuantity: number; previousQuantity: number } | null> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const res = await client.query(
+        `UPDATE product_variants SET stock_qty = stock_qty + $2, updated_at = now()
+         WHERE id = $1 AND stock_qty + $2 >= 0
+         RETURNING stock_qty`,
+        [variantId, quantity],
+      );
+      if (!res.rows.length) {
+        await client.query('ROLLBACK');
+        return null;
+      }
+      const newQuantity = Number(res.rows[0].stock_qty);
+      const previousQuantity = newQuantity - quantity;
+      const prod = await client.query('SELECT product_id FROM product_variants WHERE id = $1', [variantId]);
+      await client.query(
+        `INSERT INTO inventory_transactions
+           (id, variant_id, product_id, change_type, quantity_change, previous_quantity, new_quantity, reason, staff_user_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        [
+          randomUUID(),
+          variantId,
+          prod.rows[0]?.product_id ?? null,
+          changeType,
+          quantity,
+          previousQuantity,
+          newQuantity,
+          reason,
+          staffUserId,
+        ],
+      );
+      await client.query('COMMIT');
+      return { newQuantity, previousQuantity };
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+}
+```
+
+- [ ] **Step 4: Write `backend/src/services/inventoryService.ts`**
+
+```ts
+import { ConflictError } from '../utils/errors.js';
+import type { InventoryRepository } from '../repositories/inventoryRepository.js';
+
+export class InventoryService {
+  constructor(private inventoryRepo: InventoryRepository) {}
+
+  listVariantInventory(stock?: 'low' | 'out' | 'all') {
+    return this.inventoryRepo.listVariantInventory(stock);
+  }
+
+  async adjust(
+    variantId: string,
+    input: { quantity: number; reason: string; changeType: 'add' | 'reduce' | 'adjust' | 'purchase' },
+    staffUserId: string | null,
+  ) {
+    const result = await this.inventoryRepo.adjust(variantId, input.quantity, input.reason, input.changeType, staffUserId);
+    if (!result) throw new ConflictError('Insufficient stock for adjustment');
+    return result;
+  }
+}
+```
+
+- [ ] **Step 5: Write `backend/src/controllers/inventoryController.ts`**
+
+```ts
+import type { Request, Response } from 'express';
+import type { InventoryService } from '../services/inventoryService.js';
+import { ok } from '../utils/apiResponse.js';
+
+export function inventoryController(inventoryService: InventoryService) {
+  return {
+    async list(req: Request, res: Response): Promise<void> {
+      const stock = req.query.stock === 'low' || req.query.stock === 'out' ? req.query.stock : 'all';
+      ok(res, await inventoryService.listVariantInventory(stock));
+    },
+    async adjust(req: Request, res: Response): Promise<void> {
+      const result = await inventoryService.adjust(
+        req.params.variantId,
+        req.body,
+        req.principal?.userId ?? null,
+      );
+      ok(res, result);
+    },
+  };
+}
+```
+
+- [ ] **Step 6: Write `backend/src/routes/inventoryRouter.ts`**
+
+```ts
+import { Router } from 'express';
+import { inventoryController } from '../controllers/inventoryController.js';
+import { requireRole } from '../middleware/authStub.js';
+import { validateBody } from '../middleware/validate.js';
+import { adjustInventorySchema } from '../validation/schemas.js';
+import type { InventoryService } from '../services/inventoryService.js';
+import { asyncHandler } from '../utils/asyncHandler.js';
+
+export function inventoryRouter(inventoryService: InventoryService): Router {
+  const router = Router();
+  const c = inventoryController(inventoryService);
+  const staffRoles = requireRole('super_admin', 'store_manager', 'inventory_staff');
+
+  router.get('/variants', asyncHandler(c.list));
+  router.post('/variants/:variantId/adjust', staffRoles, validateBody(adjustInventorySchema), asyncHandler(c.adjust));
+
+  return router;
+}
+```
+
+- [ ] **Step 7: Register in `backend/src/app.ts`**
+
+```ts
+import { InventoryRepository } from './repositories/inventoryRepository.js';
+import { InventoryService } from './services/inventoryService.js';
+import { inventoryRouter } from './routes/inventoryRouter.js';
+```
+```ts
+  const inventoryRepo = new InventoryRepository(pool);
+  const inventoryService = new InventoryService(inventoryRepo);
+  app.use('/api/inventory', inventoryRouter(inventoryService));
+```
+
+- [ ] **Step 8: Run tests to verify they pass**
+
+Run: `npm test`
+Expected: inventory tests pass (list, adjust + transaction, 409 on over-reduce).
+
+**Verification checkpoint:** green.
+
+---
+
+### Task 13: Cart + Wishlist vertical slice
+
+**Files:**
+- Create: `backend/src/repositories/cartRepository.ts`
+- Create: `backend/src/services/cartService.ts`
+- Create: `backend/src/controllers/cartController.ts`
+- Create: `backend/src/routes/cartRouter.ts`
+- Modify: `backend/src/app.ts`
+- Modify: `backend/src/validation/schemas.ts` (add `cartItemSchema`, `cartQuantitySchema`)
+- Modify: `backend/src/middleware/authStub.ts` (add `principalId`, `anyAuthenticated`)
+- Create: `backend/src/routes/cartRouter.test.ts`
+
+**Interfaces:**
+- Consumes: `Pool`, `ok`, `asyncHandler`, `requireRole`, `validateBody`, `NotFoundError`, `ConflictError`, models.
+- Produces:
+  - `CartRepository(pool)`: `getCart(customerId)`, `addItem(customerId, productId, variantId, quantity)`, `updateItemQuantity(customerId, itemId, quantity)`, `removeItem(customerId, itemId)`, `clearCart(customerId)`, `getWishlist(customerId)`, `toggleWishlist(customerId, productId)`.
+  - `CartService(cartRepo)` thin passthrough.
+  - `cartRouter(cartService): Router` mounted at `/api/cart`:
+    - `GET /` → cart view
+    - `POST /items` (body `{productId, variantId, quantity}`)
+    - `PATCH /items/:itemId` (body `{quantity}`)
+    - `DELETE /items/:itemId`
+    - `DELETE /`
+    - `GET /wishlist`
+    - `POST /wishlist/:productId`
+    - `DELETE /wishlist/:productId`
+
+**Cart view shape (matches Flutter `Cart` model):**
+```
+{ items: [{ id, productId, variantId, name, size, color, shade, imageUrl, quantity, unitPrice, totalPrice }],
+  subtotal, total }
+```
+
+- [ ] **Step 1: Write the failing test**
+
+`backend/src/routes/cartRouter.test.ts`:
+```ts
+import request from 'supertest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { Pool } from 'pg';
+import { loadPgMem, schemaPath } from '../db/pgMem.js';
+import { createApp } from '../app.js';
+
+describe('cart & wishlist API', () => {
+  let pool: Pool;
+  let app: ReturnType<typeof createApp>;
+  const customer = { 'x-user-id': '00000000-0000-0000-0000-000000000201', 'x-user-role': 'customer' };
+  const PID = '00000000-0000-0000-0000-000000000501';
+  const VID = '00000000-0000-0000-0000-000000000601';
+
+  beforeAll(async () => {
+    pool = loadPgMem(schemaPath());
+    app = createApp(pool);
+  });
+  afterAll(async () => {
+    await pool.end();
+  });
+
+  it('adds an item to the cart', async () => {
+    const res = await request(app).post('/api/cart/items').set(customer).send({ productId: PID, variantId: VID, quantity: 2 });
+    expect(res.status).toBe(201);
+    expect(res.body.data.items).toHaveLength(1);
+    expect(res.body.data.items[0].quantity).toBe(2);
+    expect(res.body.data.subtotal).toBeCloseTo(res.body.data.items[0].totalPrice, 2);
+  });
+
+  it('lists the cart', async () => {
+    const res = await request(app).get('/api/cart').set(customer);
+    expect(res.status).toBe(200);
+    expect(res.body.data.items).toHaveLength(1);
+    expect(res.body.data.items[0].name).toBe('Rosé Midi Wrap Dress');
+  });
+
+  it('rejects quantity above stock', async () => {
+    const res = await request(app).post('/api/cart/items').set(customer).send({ productId: PID, variantId: VID, quantity: 99999 });
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('CONFLICT');
+  });
+
+  it('updates item quantity', async () => {
+    const cart = await request(app).get('/api/cart').set(customer);
+    const itemId = cart.body.data.items[0].id;
+    const res = await request(app).patch(`/api/cart/items/${itemId}`).set(customer).send({ quantity: 3 });
+    expect(res.status).toBe(200);
+    expect(res.body.data.items[0].quantity).toBe(3);
+  });
+
+  it('removes an item', async () => {
+    const cart = await request(app).get('/api/cart').set(customer);
+    const itemId = cart.body.data.items[0].id;
+    const res = await request(app).delete(`/api/cart/items/${itemId}`).set(customer);
+    expect(res.status).toBe(200);
+    expect(res.body.data.items).toHaveLength(0);
+  });
+
+  it('toggles the wishlist', async () => {
+    const add = await request(app).post(`/api/cart/wishlist/${PID}`).set(customer);
+    expect(add.body.data.added).toBe(true);
+    const list = await request(app).get('/api/cart/wishlist').set(customer);
+    expect(list.body.data.map((i: { productId: string }) => i.productId)).toContain(PID);
+    const remove = await request(app).delete(`/api/cart/wishlist/${PID}`).set(customer);
+    expect(remove.body.data.added).toBe(false);
+  });
+});
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `npm test`
+Expected: FAIL — `/api/cart` returns 404.
+
+- [ ] **Step 3: Add helpers to `backend/src/middleware/authStub.ts`**
+
+```ts
+import { UnauthorizedError } from '../utils/errors.js';
+
+export const anyAuthenticated = requireRole('customer', 'super_admin', 'store_manager', 'inventory_staff');
+
+export function principalId(req: Request): string {
+  const principal = req.principal;
+  if (!principal) throw new UnauthorizedError('Authentication required');
+  return principal.userId;
+}
+```
+If `UnauthorizedError` is not yet in `backend/src/utils/errors.ts`, add it (class extending `AppError` with code `UNAUTHORIZED`, status 401).
+
+- [ ] **Step 4: Extend `backend/src/validation/schemas.ts`**
+
+```ts
+export const cartItemSchema = z.object({
+  productId: z.string().uuid(),
+  variantId: z.string().uuid(),
+  quantity: z.number().int().positive(),
+});
+export const cartQuantitySchema = z.object({ quantity: z.number().int().positive() });
+```
+
+- [ ] **Step 5: Write `backend/src/repositories/cartRepository.ts`**
+
+```ts
+import { randomUUID } from 'node:crypto';
+import type { Pool } from 'pg';
+import { toNumber } from '../models/index.js';
+import { ConflictError, NotFoundError } from '../utils/errors.js';
+
+export interface CartItemRow {
+  id: string;
+  productId: string;
+  variantId: string;
+  name: string;
+  size: string | null;
+  color: string | null;
+  shade: string | null;
+  imageUrl: string | null;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+}
+
+export interface CartView {
+  items: CartItemRow[];
+  subtotal: number;
+  total: number;
+}
+
+export class CartRepository {
+  constructor(private pool: Pool) {}
+
+  async getCart(customerId: string): Promise<CartView> {
+    const res = await this.pool.query(
+      `SELECT ci.id, ci.product_id, ci.variant_id, ci.quantity, ci.unit_price,
+              p.name, v.size, v.color, v.shade
+       FROM cart_items ci
+       JOIN products p ON p.id = ci.product_id
+       JOIN product_variants v ON v.id = ci.variant_id
+       WHERE ci.customer_id = $1
+       ORDER BY ci.created_at`,
+      [customerId],
+    );
+    const items: CartItemRow[] = res.rows.map((r) => {
+      const quantity = toNumber(r.quantity);
+      const unitPrice = Number(r.unit_price);
+      return {
+        id: r.id,
+        productId: r.product_id,
+        variantId: r.variant_id,
+        name: r.name,
+        size: r.size,
+        color: r.color,
+        shade: r.shade,
+        imageUrl: null,
+        quantity,
+        unitPrice,
+        totalPrice: quantity * unitPrice,
+      };
+    });
+    if (items.length) {
+      const productIds = [...new Set(items.map((i) => i.productId))];
+      const imgRes = await this.pool.query(
+        `SELECT DISTINCT ON (product_id) product_id, url FROM product_images
+         WHERE product_id = ANY($1) ORDER BY product_id, position`,
+        [productIds],
+      );
+      const urlByProduct = new Map(imgRes.rows.map((r) => [r.product_id, r.url]));
+      for (const item of items) item.imageUrl = urlByProduct.get(item.productId) ?? null;
+    }
+    const subtotal = items.reduce((s, i) => s + i.totalPrice, 0);
+    return { items, subtotal, total: subtotal };
+  }
+
+  async addItem(customerId: string, productId: string, variantId: string, quantity: number): Promise<CartView> {
+    if (quantity < 1) throw new ConflictError('Quantity must be at least 1');
+    const vres = await this.pool.query(
+      `SELECT v.stock_qty, p.base_price, p.discount_price
+       FROM product_variants v JOIN products p ON p.id = v.product_id
+       WHERE v.id = $1 AND v.product_id = $2 AND v.is_active = TRUE AND p.status = 'active'`,
+      [variantId, productId],
+    );
+    if (!vres.rows.length) throw new NotFoundError('Variant not found');
+    const stock = toNumber(vres.rows[0].stock_qty);
+    const existing = await this.pool.query(
+      'SELECT quantity FROM cart_items WHERE customer_id = $1 AND variant_id = $2',
+      [customerId, variantId],
+    );
+    const newQuantity = quantity + (existing.rows.length ? toNumber(existing.rows[0].quantity) : 0);
+    if (newQuantity > stock) throw new ConflictError('Requested quantity exceeds available stock');
+    const unitPrice = vres.rows[0].discount_price ?? vres.rows[0].base_price;
+    await this.pool.query(
+      `INSERT INTO cart_items (id, customer_id, product_id, variant_id, quantity, unit_price)
+       VALUES ($1,$2,$3,$4,$5,$6)
+       ON CONFLICT (customer_id, variant_id)
+       DO UPDATE SET quantity = EXCLUDED.quantity, unit_price = EXCLUDED.unit_price, updated_at = now()`,
+      [randomUUID(), customerId, productId, variantId, newQuantity, unitPrice],
+    );
+    return this.getCart(customerId);
+  }
+
+  async updateItemQuantity(customerId: string, itemId: string, quantity: number): Promise<CartView> {
+    if (quantity < 1) throw new ConflictError('Quantity must be at least 1');
+    const res = await this.pool.query(
+      `UPDATE cart_items ci SET quantity = $3, updated_at = now()
+       FROM product_variants v
+       WHERE ci.id = $2 AND ci.customer_id = $1 AND v.id = ci.variant_id AND v.stock_qty >= $3
+       RETURNING ci.id`,
+      [customerId, itemId, quantity],
+    );
+    if (!res.rows.length) {
+      const exists = await this.pool.query('SELECT id FROM cart_items WHERE id = $1 AND customer_id = $2', [itemId, customerId]);
+      if (!exists.rows.length) throw new NotFoundError('Cart item not found');
+      throw new ConflictError('Requested quantity exceeds available stock');
+    }
+    return this.getCart(customerId);
+  }
+
+  async removeItem(customerId: string, itemId: string): Promise<CartView> {
+    const res = await this.pool.query('DELETE FROM cart_items WHERE id = $1 AND customer_id = $2', [itemId, customerId]);
+    if (!res.rowCount) throw new NotFoundError('Cart item not found');
+    return this.getCart(customerId);
+  }
+
+  async clearCart(customerId: string): Promise<void> {
+    await this.pool.query('DELETE FROM cart_items WHERE customer_id = $1', [customerId]);
+  }
+
+  async getWishlist(customerId: string) {
+    const res = await this.pool.query(
+      `SELECT wi.product_id, p.name, p.base_price, p.discount_price, p.rating
+       FROM wishlist_items wi JOIN products p ON p.id = wi.product_id
+       WHERE wi.customer_id = $1 AND p.status = 'active'
+       ORDER BY wi.created_at DESC`,
+      [customerId],
+    );
+    return res.rows.map((r) => ({
+      productId: r.product_id,
+      name: r.name,
+      basePrice: Number(r.base_price),
+      discountPrice: r.discount_price === null ? null : Number(r.discount_price),
+      rating: Number(r.rating),
+    }));
+  }
+
+  async toggleWishlist(customerId: string, productId: string): Promise<{ added: boolean }> {
+    const existing = await this.pool.query(
+      'SELECT 1 FROM wishlist_items WHERE customer_id = $1 AND product_id = $2',
+      [customerId, productId],
+    );
+    if (existing.rows.length) {
+      await this.pool.query('DELETE FROM wishlist_items WHERE customer_id = $1 AND product_id = $2', [customerId, productId]);
+      return { added: false };
+    }
+    await this.pool.query('INSERT INTO wishlist_items (customer_id, product_id) VALUES ($1,$2)', [customerId, productId]);
+    return { added: true };
+  }
+}
+```
+
+- [ ] **Step 6: Write `backend/src/services/cartService.ts`**
+
+```ts
+import type { CartRepository } from '../repositories/cartRepository.js';
+
+export class CartService {
+  constructor(private cartRepo: CartRepository) {}
+
+  getCart(customerId: string) {
+    return this.cartRepo.getCart(customerId);
+  }
+  addToCart(customerId: string, input: { productId: string; variantId: string; quantity: number }) {
+    return this.cartRepo.addItem(customerId, input.productId, input.variantId, input.quantity);
+  }
+  updateQuantity(customerId: string, itemId: string, quantity: number) {
+    return this.cartRepo.updateItemQuantity(customerId, itemId, quantity);
+  }
+  removeItem(customerId: string, itemId: string) {
+    return this.cartRepo.removeItem(customerId, itemId);
+  }
+  clearCart(customerId: string) {
+    return this.cartRepo.clearCart(customerId);
+  }
+  getWishlist(customerId: string) {
+    return this.cartRepo.getWishlist(customerId);
+  }
+  toggleWishlist(customerId: string, productId: string) {
+    return this.cartRepo.toggleWishlist(customerId, productId);
+  }
+}
+```
+
+- [ ] **Step 7: Write `backend/src/controllers/cartController.ts`**
+
+```ts
+import type { Request, Response } from 'express';
+import type { CartService } from '../services/cartService.js';
+import { ok } from '../utils/apiResponse.js';
+import { principalId } from '../middleware/authStub.js';
+
+export function cartController(cartService: CartService) {
+  return {
+    async getCart(req: Request, res: Response): Promise<void> {
+      ok(res, await cartService.getCart(principalId(req)));
+    },
+    async addItem(req: Request, res: Response): Promise<void> {
+      ok(res, await cartService.addToCart(principalId(req), req.body), 201);
+    },
+    async updateQuantity(req: Request, res: Response): Promise<void> {
+      ok(res, await cartService.updateQuantity(principalId(req), req.params.itemId, req.body.quantity));
+    },
+    async removeItem(req: Request, res: Response): Promise<void> {
+      ok(res, await cartService.removeItem(principalId(req), req.params.itemId));
+    },
+    async clearCart(req: Request, res: Response): Promise<void> {
+      await cartService.clearCart(principalId(req));
+      ok(res, { cleared: true });
+    },
+    async getWishlist(req: Request, res: Response): Promise<void> {
+      ok(res, await cartService.getWishlist(principalId(req)));
+    },
+    async toggleWishlist(req: Request, res: Response): Promise<void> {
+      ok(res, await cartService.toggleWishlist(principalId(req), req.params.productId));
+    },
+  };
+}
+```
+
+- [ ] **Step 8: Write `backend/src/routes/cartRouter.ts`**
+
+```ts
+import { Router } from 'express';
+import { cartController } from '../controllers/cartController.js';
+import { anyAuthenticated } from '../middleware/authStub.js';
+import { validateBody } from '../middleware/validate.js';
+import { cartItemSchema, cartQuantitySchema } from '../validation/schemas.js';
+import type { CartService } from '../services/cartService.js';
+import { asyncHandler } from '../utils/asyncHandler.js';
+
+export function cartRouter(cartService: CartService): Router {
+  const router = Router();
+  const c = cartController(cartService);
+
+  router.get('/', anyAuthenticated, asyncHandler(c.getCart));
+  router.post('/items', anyAuthenticated, validateBody(cartItemSchema), asyncHandler(c.addItem));
+  router.patch('/items/:itemId', anyAuthenticated, validateBody(cartQuantitySchema), asyncHandler(c.updateQuantity));
+  router.delete('/items/:itemId', anyAuthenticated, asyncHandler(c.removeItem));
+  router.delete('/', anyAuthenticated, asyncHandler(c.clearCart));
+
+  router.get('/wishlist', anyAuthenticated, asyncHandler(c.getWishlist));
+  router.post('/wishlist/:productId', anyAuthenticated, asyncHandler(c.toggleWishlist));
+  router.delete('/wishlist/:productId', anyAuthenticated, asyncHandler(c.toggleWishlist));
+
+  return router;
+}
+```
+
+- [ ] **Step 9: Register in `backend/src/app.ts`**
+
+```ts
+import { CartRepository } from './repositories/cartRepository.js';
+import { CartService } from './services/cartService.js';
+import { cartRouter } from './routes/cartRouter.js';
+```
+```ts
+  const cartRepo = new CartRepository(pool);
+  const cartService = new CartService(cartRepo);
+  app.use('/api/cart', cartRouter(cartService));
+```
+
+- [ ] **Step 10: Run tests to verify they pass**
+
+Run: `npm test`
+Expected: cart & wishlist tests pass.
+
+**Verification checkpoint:** green.
+
+---
+
+### Task 14: Orders vertical slice (transactional checkout)
+
+**Files:**
+- Create: `backend/src/repositories/orderRepository.ts`
+- Create: `backend/src/services/orderService.ts`
+- Create: `backend/src/controllers/orderController.ts`
+- Create: `backend/src/routes/orderRouter.ts`
+- Modify: `backend/src/app.ts`
+- Modify: `backend/src/validation/schemas.ts` (add `checkoutSchema`, `orderStatusSchema`)
+- Create: `backend/src/routes/orderRouter.test.ts`
+
+**Interfaces:**
+- Consumes: `Pool`, `ok`, `asyncHandler`, `requireRole`, `validateBody`, `NotFoundError`, `ConflictError`, `ValidationError`, `UnauthorizedError`, models.
+- Produces:
+  - `OrderRepository(pool)`:
+    - `create(customerId, input)` — single transaction:
+      1. `SELECT ... FOR UPDATE` the variant rows; verify each exists/active and `stock_qty >= quantity` (else `ConflictError`).
+      2. Compute `subtotal` from `COALESCE(discount_price, base_price)` snapshots.
+      3. If `promoCode`: look up active promo within date window; validate `min_subtotal`; compute `discountAmount` (percentage or fixed, capped at subtotal).
+      4. `deliveryFee` = 2500, or 0 when `(subtotal - discountAmount) >= 100000`.
+      5. Insert `orders` row (`status 'pending'`, `estimated_delivery_time = now() + 2 days`, `order_number = QT-<epoch>-<4 hex>`).
+      6. Insert `order_items`; decrement `product_variants.stock_qty`.
+      7. Insert `payments` row: method from payload, `status = cash ? 'unpaid' : 'pending'`, `reference = cash ? null : PAY-<orderNumber>`.
+      8. Delete matching `cart_items`.
+      9. `COMMIT`; return order via `findById`.
+    - `findById(id)`, `listByCustomer(customerId)`, `listAll({status?, page?, pageSize?})`, `setStatus(orderId, status)`, `cancel(customerId, orderId)` (only while `pending`, else `ConflictError`).
+  - `OrderService(orderRepo)` — wraps with ownership checks (`customer` may only access own orders), returns `Order`.
+  - `orderRouter(orderService): Router` mounted at `/api/orders`:
+    - `GET /` (any authenticated: customer→own, staff→all, `?status=`)
+    - `POST /` (any authenticated; `validateBody(checkoutSchema)`)
+    - `GET /:id`
+    - `DELETE /:id` (customer cancels own pending order)
+    - `PATCH /:id/status` (roles `super_admin|store_manager|inventory_staff`; body `{status}`)
+
+- [ ] **Step 1: Write the failing test**
+
+`backend/src/routes/orderRouter.test.ts`:
+```ts
+import request from 'supertest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { Pool } from 'pg';
+import { loadPgMem, schemaPath } from '../db/pgMem.js';
+import { createApp } from '../app.js';
+
+describe('orders API', () => {
+  let pool: Pool;
+  let app: ReturnType<typeof createApp>;
+  const customer = { 'x-user-id': '00000000-0000-0000-0000-000000000201', 'x-user-role': 'customer' };
+  const manager = { 'x-user-id': '00000000-0000-0000-0000-000000000203', 'x-user-role': 'store_manager' };
+  const PID = '00000000-0000-0000-0000-000000000501';
+  const VID = '00000000-0000-0000-0000-000000000601';
+  const payload = {
+    items: [{ productId: PID, variantId: VID, quantity: 1 }],
+    deliveryAddress: { fullName: 'Amara Okafor', phone: '08011111111', line1: '12 Broad St', city: 'Lagos', state: 'Lagos' },
+    paymentMethod: 'transfer',
+  };
+
+  beforeAll(async () => {
+    pool = loadPgMem(schemaPath());
+    app = createApp(pool);
+  });
+  afterAll(async () => {
+    await pool.end();
+  });
+
+  it('creates an order and decrements stock', async () => {
+    const seed = await pool.query('SELECT stock_qty FROM product_variants WHERE id = $1', [VID]);
+    const res = await request(app).post('/api/orders').set(customer).send(payload);
+    expect(res.status).toBe(201);
+    expect(res.body.data.orderNumber).toMatch(/^QT-/);
+    expect(res.body.data.status).toBe('pending');
+    expect(res.body.data.deliveryFee).toBeGreaterThan(0);
+    const after = await pool.query('SELECT stock_qty FROM product_variants WHERE id = $1', [VID]);
+    expect(Number(after.rows[0].stock_qty)).toBe(Number(seed.rows[0].stock_qty) - 1);
+  });
+
+  it('rejects insufficient stock', async () => {
+    const res = await request(app).post('/api/orders').set(customer).send({
+      ...payload,
+      items: [{ productId: PID, variantId: VID, quantity: 999999 }],
+    });
+    expect(res.status).toBe(409);
+  });
+
+  it('rejects an invalid promo code', async () => {
+    const res = await request(app).post('/api/orders').set(customer).send({ ...payload, promoCode: 'NOPE' });
+    expect(res.status).toBe(400);
+  });
+
+  it('applies the FLAT15 promo discount', async () => {
+    const res = await request(app).post('/api/orders').set(customer).send({ ...payload, promoCode: 'FLAT15' });
+    expect(res.status).toBe(201);
+    expect(res.body.data.discountAmount).toBe(15);
+  });
+
+  it('lists the customer’s own orders', async () => {
+    const res = await request(app).get('/api/orders').set(customer);
+    expect(res.status).toBe(200);
+    expect(res.body.data.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('prevents a customer from reading another user’s order', async () => {
+    const list = await request(app).get('/api/orders').set(manager);
+    const other = list.body.data.find((o: { customerId: string }) => o.customerId !== '00000000-0000-0000-0000-000000000201');
+    if (other) {
+      const res = await request(app).get(`/api/orders/${other.id}`).set(customer);
+      expect(res.status).toBe(403);
+    }
+  });
+
+  it('staff can update order status to delivered', async () => {
+    const list = await request(app).get('/api/orders').set(manager);
+    const orderId = list.body.data[0].id;
+    const res = await request(app).patch(`/api/orders/${orderId}/status`).set(manager).send({ status: 'delivered' });
+    expect(res.status).toBe(200);
+    expect(res.body.data.status).toBe('delivered');
+  });
+});
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `npm test`
+Expected: FAIL — `/api/orders` returns 404.
+
+- [ ] **Step 3: Extend `backend/src/validation/schemas.ts`**
+
+```ts
+export const checkoutSchema = z.object({
+  items: z.array(
+    z.object({
+      productId: z.string().uuid(),
+      variantId: z.string().uuid(),
+      quantity: z.number().int().positive(),
+    }),
+  ).min(1),
+  deliveryAddress: z.object({
+    fullName: z.string().min(1),
+    phone: z.string().min(1),
+    line1: z.string().min(1),
+    line2: z.string().optional(),
+    city: z.string().min(1),
+    state: z.string().min(1),
+    country: z.string().optional().default('Nigeria'),
+  }),
+  promoCode: z.string().optional().nullable(),
+  paymentMethod: z.enum(['card', 'transfer', 'cash']),
+  note: z.string().optional().nullable(),
+});
+
+export const orderStatusSchema = z.object({
+  status: z.enum(['pending', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded']),
+});
+```
+
+- [ ] **Step 4: Write `backend/src/repositories/orderRepository.ts`**
+
+```ts
+import { randomUUID } from 'node:crypto';
+import type { Pool } from 'pg';
+import { toNumber } from '../models/index.js';
+import { ConflictError, NotFoundError, ValidationError } from '../utils/errors.js';
+import type { Order } from '../models/index.js';
+
+export interface CheckoutItemInput {
+  productId: string;
+  variantId: string;
+  quantity: number;
+}
+
+export interface CheckoutInput {
+  items: CheckoutItemInput[];
+  deliveryAddress: {
+    fullName: string;
+    phone: string;
+    line1: string;
+    line2?: string;
+    city: string;
+    state: string;
+    country?: string;
+  };
+  promoCode?: string | null;
+  paymentMethod: 'card' | 'transfer' | 'cash';
+  note?: string | null;
+}
+
+const DELIVERY_FEE = 2500;
+const FREE_DELIVERY_THRESHOLD = 100000;
+
+function makeOrderNumber(): string {
+  return `QT-${Date.now()}-${randomUUID().slice(0, 4).toUpperCase()}`;
+}
+
+function mapOrder(row: Record<string, unknown>): Order {
+  return {
+    id: row.id as string,
+    orderNumber: String(row.order_number),
+    customerId: String(row.customer_id),
+    subtotal: Number(row.subtotal),
+    discountAmount: Number(row.discount_amount),
+    deliveryFee: Number(row.delivery_fee),
+    total: Number(row.total),
+    status: row.status as Order['status'],
+    paymentMethod: String(row.payment_method),
+    deliveryAddress:
+      typeof row.delivery_address === 'string' ? JSON.parse(row.delivery_address) : (row.delivery_address ?? null),
+    note: row.note ?? null,
+    estimatedDeliveryTime: row.estimated_delivery_time,
+    createdAt: row.created_at,
+    items: [],
+    payment: null,
+  };
+}
+
+export class OrderRepository {
+  constructor(private pool: Pool) {}
+
+  async findById(id: string): Promise<Order | null> {
+    const res = await this.pool.query('SELECT * FROM orders WHERE id = $1', [id]);
+    if (!res.rows.length) return null;
+    const order = mapOrder(res.rows[0]);
+    const items = await this.pool.query(
+      `SELECT oi.id, oi.order_id, oi.product_id, oi.variant_id, oi.quantity, oi.unit_price, oi.total_price, p.name
+       FROM order_items oi JOIN products p ON p.id = oi.product_id
+       WHERE oi.order_id = $1`,
+      [id],
+    );
+    order.items = items.rows.map((r) => ({
+      id: r.id,
+      orderId: r.order_id,
+      productId: r.product_id,
+      variantId: r.variant_id,
+      name: r.name,
+      quantity: toNumber(r.quantity),
+      unitPrice: Number(r.unit_price),
+      totalPrice: Number(r.total_price),
+    }));
+    const pay = await this.pool.query('SELECT method, status, reference FROM payments WHERE order_id = $1', [id]);
+    order.payment = pay.rows.length
+      ? { method: pay.rows[0].method, status: pay.rows[0].status, reference: pay.rows[0].reference ?? null }
+      : null;
+    return order;
+  }
+
+  async create(customerId: string, input: CheckoutInput): Promise<Order> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const variantIds = input.items.map((i) => i.variantId);
+      const vres = await client.query(
+        `SELECT v.id, v.product_id, v.stock_qty, p.base_price, p.discount_price
+         FROM product_variants v JOIN products p ON p.id = v.product_id
+         WHERE v.id = ANY($1) AND v.is_active = TRUE AND p.status = 'active'
+         FOR UPDATE`,
+        [variantIds],
+      );
+      const variantMap = new Map(vres.rows.map((r) => [r.id, r]));
+      let subtotal = 0;
+      for (const item of input.items) {
+        const v = variantMap.get(item.variantId);
+        if (!v) throw new NotFoundError(`Variant ${item.variantId} not found`);
+        if (toNumber(v.stock_qty) < item.quantity) throw new ConflictError('Insufficient stock for one or more items');
+        subtotal += Number(v.discount_price ?? v.base_price) * item.quantity;
+      }
+
+      let discountAmount = 0;
+      let promoCode: string | null = null;
+      if (input.promoCode) {
+        const pres = await client.query(
+          `SELECT * FROM promotions WHERE code = $1 AND is_active = TRUE AND now() BETWEEN start_date AND end_date`,
+          [input.promoCode],
+        );
+        if (!pres.rows.length) throw new ValidationError('Promotion code is invalid or expired');
+        const promo = pres.rows[0];
+        if (promo.min_subtotal !== null && subtotal < Number(promo.min_subtotal)) {
+          throw new ValidationError('Subtotal is below the promotion minimum');
+        }
+        promoCode = promo.code;
+        if (promo.discount_type === 'percentage') discountAmount = (subtotal * Number(promo.discount_value)) / 100;
+        else discountAmount = Number(promo.discount_value);
+        if (discountAmount > subtotal) discountAmount = subtotal;
+      }
+
+      const deliveryFee = subtotal - discountAmount >= FREE_DELIVERY_THRESHOLD ? 0 : DELIVERY_FEE;
+      const total = subtotal - discountAmount + deliveryFee;
+      const orderId = randomUUID();
+      const orderNumber = makeOrderNumber();
+      const estimated = new Date(Date.now() + 2 * 86400000);
+
+      await client.query(
+        `INSERT INTO orders (id, order_number, customer_id, subtotal, discount_amount, delivery_fee, total,
+           promotion_code, status, payment_method, delivery_address, note, estimated_delivery_time)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending',$9,$10,$11,$12)`,
+        [
+          orderId, orderNumber, customerId, subtotal, discountAmount, deliveryFee, total, promoCode,
+          input.paymentMethod, JSON.stringify(input.deliveryAddress), input.note ?? null, estimated,
+        ],
+      );
+
+      for (const item of input.items) {
+        const v = variantMap.get(item.variantId)!;
+        const unitPrice = Number(v.discount_price ?? v.base_price);
+        await client.query(
+          `INSERT INTO order_items (id, order_id, product_id, variant_id, quantity, unit_price, total_price)
+           VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+          [randomUUID(), orderId, item.productId, item.variantId, item.quantity, unitPrice, unitPrice * item.quantity],
+        );
+        await client.query(
+          'UPDATE product_variants SET stock_qty = stock_qty - $2, updated_at = now() WHERE id = $1',
+          [item.variantId, item.quantity],
+        );
+      }
+
+      await client.query(
+        `INSERT INTO payments (id, order_id, method, status, reference, amount)
+         VALUES ($1,$2,$3,$4,$5,$6)`,
+        [
+          randomUUID(), orderId, input.paymentMethod,
+          input.paymentMethod === 'cash' ? 'unpaid' : 'pending',
+          input.paymentMethod === 'cash' ? null : `PAY-${orderNumber}`,
+          total,
+        ],
+      );
+
+      await client.query('DELETE FROM cart_items WHERE customer_id = $1 AND variant_id = ANY($2)', [customerId, variantIds]);
+      await client.query('COMMIT');
+
+      const order = await this.findById(orderId);
+      if (!order) throw new NotFoundError('Order was not created');
+      return order;
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+
+  async listByCustomer(customerId: string, status?: string) {
+    const params: unknown[] = [customerId];
+    let where = 'WHERE customer_id = $1';
+    if (status) {
+      params.push(status);
+      where += ` AND status = $${params.length}`;
+    }
+    const res = await this.pool.query(`SELECT * FROM orders ${where} ORDER BY created_at DESC`, params);
+    return res.rows.map(mapOrder);
+  }
+
+  async listAll(params: { status?: string; page?: number; pageSize?: number }) {
+    const conditions: string[] = [];
+    const values: unknown[] = [];
+    if (params.status) {
+      values.push(params.status);
+      conditions.push(`status = $${values.length}`);
+    }
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    const page = Math.max(1, params.page ?? 1);
+    const pageSize = Math.min(100, Math.max(1, params.pageSize ?? 20));
+    const offset = (page - 1) * pageSize;
+    const countRes = await this.pool.query(`SELECT count(*)::int AS n FROM orders ${where}`, values);
+    const res = await this.pool.query(
+      `SELECT * FROM orders ${where} ORDER BY created_at DESC LIMIT $${values.length + 1} OFFSET $${values.length + 2}`,
+      [...values, pageSize, offset],
+    );
+    return { rows: res.rows.map(mapOrder), total: toNumber(countRes.rows[0]?.n ?? 0) };
+  }
+
+  async setStatus(orderId: string, status: string): Promise<Order | null> {
+    const res = await this.pool.query(
+      `UPDATE orders SET status = $2, updated_at = now() WHERE id = $1 RETURNING id`,
+      [orderId, status],
+    );
+    if (!res.rows.length) throw new NotFoundError('Order not found');
+    return this.findById(orderId);
+  }
+
+  async cancel(customerId: string, orderId: string): Promise<Order | null> {
+    const res = await this.pool.query(
+      `UPDATE orders SET status = 'cancelled', updated_at = now()
+       WHERE id = $2 AND customer_id = $1 AND status = 'pending'
+       RETURNING id`,
+      [customerId, orderId],
+    );
+    if (!res.rows.length) {
+      const exists = await this.pool.query('SELECT status FROM orders WHERE id = $1 AND customer_id = $2', [orderId, customerId]);
+      if (!exists.rows.length) throw new NotFoundError('Order not found');
+      throw new ConflictError('Only pending orders can be cancelled');
+    }
+    return this.findById(orderId);
+  }
+}
+```
+
+- [ ] **Step 5: Write `backend/src/services/orderService.ts`**
+
+```ts
+import type { Order } from '../models/index.js';
+import { NotFoundError, UnauthorizedError } from '../utils/errors.js';
+import type { CheckoutInput, OrderRepository } from '../repositories/orderRepository.js';
+
+export class OrderService {
+  constructor(private orderRepo: OrderRepository) {}
+
+  create(customerId: string, input: CheckoutInput) {
+    return this.orderRepo.create(customerId, input);
+  }
+
+  async getById(id: string, viewerId: string, viewerRole: string): Promise<Order> {
+    const order = await this.orderRepo.findById(id);
+    if (!order) throw new NotFoundError('Order not found');
+    if (viewerRole === 'customer' && order.customerId !== viewerId) {
+      throw new UnauthorizedError('You can only view your own orders');
+    }
+    return order;
+  }
+
+  listForCustomer(customerId: string, status?: string) {
+    return this.orderRepo.listByCustomer(customerId, status);
+  }
+
+  listForStaff(params: { status?: string; page?: number; pageSize?: number }) {
+    return this.orderRepo.listAll(params);
+  }
+
+  cancel(customerId: string, orderId: string) {
+    return this.orderRepo.cancel(customerId, orderId);
+  }
+
+  async updateStatus(orderId: string, status: string, staffUserId: string) {
+    const order = await this.orderRepo.setStatus(orderId, status);
+    if (!order) throw new NotFoundError('Order not found');
+    await this.orderRepo.logAudit(orderId, 'order.status_changed', staffUserId, { status });
+    return order;
+  }
+}
+```
+Add `logAudit(entityId, action, userId, details)` to `OrderRepository` (simple insert into `audit_logs`).
+
+- [ ] **Step 6: Write `backend/src/controllers/orderController.ts`**
+
+```ts
+import type { Request, Response } from 'express';
+import type { OrderService } from '../services/orderService.js';
+import { ok } from '../utils/apiResponse.js';
+import { principalId } from '../middleware/authStub.js';
+
+export function orderController(orderService: OrderService) {
+  return {
+    async list(req: Request, res: Response): Promise<void> {
+      const principal = req.principal!;
+      const status = req.query.status ? String(req.query.status) : undefined;
+      if (principal.role === 'customer') {
+        ok(res, await orderService.listForCustomer(principal.userId, status));
+      } else {
+        ok(res, await orderService.listForStaff({
+          status,
+          page: req.query.page ? Number(req.query.page) : undefined,
+          pageSize: req.query.pageSize ? Number(req.query.pageSize) : undefined,
+        }));
+      }
+    },
+    async create(req: Request, res: Response): Promise<void> {
+      ok(res, await orderService.create(principalId(req), req.body), 201);
+    },
+    async get(req: Request, res: Response): Promise<void> {
+      const principal = req.principal!;
+      ok(res, await orderService.getById(req.params.id, principal.userId, principal.role));
+    },
+    async cancel(req: Request, res: Response): Promise<void> {
+      ok(res, await orderService.cancel(principalId(req), req.params.id));
+    },
+    async updateStatus(req: Request, res: Response): Promise<void> {
+      const principal = req.principal!;
+      ok(res, await orderService.updateStatus(req.params.id, req.body.status, principal.userId));
+    },
+  };
+}
+```
+
+- [ ] **Step 7: Write `backend/src/routes/orderRouter.ts`**
+
+```ts
+import { Router } from 'express';
+import { orderController } from '../controllers/orderController.js';
+import { anyAuthenticated, requireRole } from '../middleware/authStub.js';
+import { validateBody } from '../middleware/validate.js';
+import { checkoutSchema, orderStatusSchema } from '../validation/schemas.js';
+import type { OrderService } from '../services/orderService.js';
+import { asyncHandler } from '../utils/asyncHandler.js';
+
+export function orderRouter(orderService: OrderService): Router {
+  const router = Router();
+  const c = orderController(orderService);
+
+  router.get('/', anyAuthenticated, asyncHandler(c.list));
+  router.post('/', anyAuthenticated, validateBody(checkoutSchema), asyncHandler(c.create));
+  router.get('/:id', anyAuthenticated, asyncHandler(c.get));
+  router.delete('/:id', anyAuthenticated, asyncHandler(c.cancel));
+  router.patch(
+    '/:id/status',
+    requireRole('super_admin', 'store_manager', 'inventory_staff'),
+    validateBody(orderStatusSchema),
+    asyncHandler(c.updateStatus),
+  );
+
+  return router;
+}
+```
+
+- [ ] **Step 8: Register in `backend/src/app.ts`**
+
+```ts
+import { OrderRepository } from './repositories/orderRepository.js';
+import { OrderService } from './services/orderService.js';
+import { orderRouter } from './routes/orderRouter.js';
+```
+```ts
+  const orderRepo = new OrderRepository(pool);
+  const orderService = new OrderService(orderRepo);
+  app.use('/api/orders', orderRouter(orderService));
+```
+NOTE: mount orders AFTER cart; route order matters only for overlapping prefixes (there is none).
+
+- [ ] **Step 9: Run tests to verify they pass**
+
+Run: `npm test`
+Expected: orders tests pass (create + stock decrement, 409, promo, ownership 403, staff status update).
+
+**Verification checkpoint:** green.
+
+---
+
+### Task 15: Payments vertical slice
+
+**Files:**
+- Create: `backend/src/repositories/paymentRepository.ts`
+- Create: `backend/src/services/paymentService.ts`
+- Create: `backend/src/controllers/paymentController.ts`
+- Create: `backend/src/routes/paymentRouter.ts`
+- Modify: `backend/src/app.ts`
+- Create: `backend/src/routes/paymentRouter.test.ts`
+
+**Interfaces:**
+- Consumes: `Pool`, `ok`, `asyncHandler`, `anyAuthenticated`, `requireRole`, `validateBody`, `NotFoundError`, `ConflictError`.
+- Produces:
+  - `PaymentRepository(pool)`:
+    - `getByOrder(orderId)` — payment for an order.
+    - `verify(orderId, reference)` — atomically: `UPDATE payments SET status='paid', reference=$2, paid_at=now() WHERE order_id=$1 AND status IN ('pending','unpaid') RETURNING *`; then `UPDATE orders SET status='processing' WHERE id=$1 AND status='pending'`. Returns `null` if the payment row was not in a payable state.
+    - `transferDetails()` — static bank details object.
+  - `PaymentService(paymentRepo)` — throws `ConflictError` when `verify` returns null, `NotFoundError` when order has no payment.
+  - `paymentRouter(paymentService): Router` mounted at `/api/payments`:
+    - `GET /:orderId` (any authenticated; ownership check)
+    - `POST /:orderId/verify` (any authenticated; body `{reference}`)
+    - `GET /transfer-details` (any authenticated)
+
+- [ ] **Step 1: Write the failing test**
+
+`backend/src/routes/paymentRouter.test.ts`:
+```ts
+import request from 'supertest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { Pool } from 'pg';
+import { loadPgMem, schemaPath } from '../db/pgMem.js';
+import { createApp } from '../app.js';
+
+describe('payments API', () => {
+  let pool: Pool;
+  let app: ReturnType<typeof createApp>;
+  const customer = { 'x-user-id': '00000000-0000-0000-0000-000000000201', 'x-user-role': 'customer' };
+  const PID = '00000000-0000-0000-0000-000000000501';
+  const VID = '00000000-0000-0000-0000-000000000601';
+
+  beforeAll(async () => {
+    pool = loadPgMem(schemaPath());
+    app = createApp(pool);
+  });
+  afterAll(async () => {
+    await pool.end();
+  });
+
+  it('creates a pending payment with an order', async () => {
+    const orderRes = await request(app).post('/api/orders').set(customer).send({
+      items: [{ productId: PID, variantId: VID, quantity: 1 }],
+      deliveryAddress: { fullName: 'Amara', phone: '080', line1: '1 St', city: 'Lagos', state: 'Lagos' },
+      paymentMethod: 'transfer',
+    });
+    const orderId = orderRes.body.data.id;
+    const res = await request(app).get(`/api/payments/${orderId}`).set(customer);
+    expect(res.status).toBe(200);
+    expect(res.body.data.status).toBe('pending');
+    expect(res.body.data.reference).toMatch(/^PAY-/);
+  });
+
+  it('verifies payment and advances the order', async () => {
+    const orders = await request(app).get('/api/orders').set(customer);
+    const orderId = orders.body.data[0].id;
+    const res = await request(app).post(`/api/payments/${orderId}/verify`).set(customer).send({ reference: 'REF-123' });
+    expect(res.status).toBe(200);
+    expect(res.body.data.status).toBe('paid');
+    const order = await request(app).get(`/api/orders/${orderId}`).set(customer);
+    expect(order.body.data.status).toBe('processing');
+  });
+
+  it('returns transfer details', async () => {
+    const res = await request(app).get('/api/payments/transfer-details').set(customer);
+    expect(res.status).toBe(200);
+    expect(res.body.data.bankName).toBeTruthy();
+  });
+});
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `npm test`
+Expected: FAIL — `/api/payments` returns 404.
+
+- [ ] **Step 3: Write `backend/src/repositories/paymentRepository.ts`**
+
+```ts
+import type { Pool } from 'pg';
+
+export class PaymentRepository {
+  constructor(private pool: Pool) {}
+
+  async getByOrder(orderId: string) {
+    const res = await this.pool.query(
+      `SELECT id, order_id, method, status, reference, amount, paid_at, created_at
+       FROM payments WHERE order_id = $1`,
+      [orderId],
+    );
+    if (!res.rows.length) return null;
+    const r = res.rows[0];
+    return {
+      id: r.id,
+      orderId: r.order_id,
+      method: r.method,
+      status: r.status,
+      reference: r.reference ?? null,
+      amount: Number(r.amount),
+      paidAt: r.paid_at,
+      createdAt: r.created_at,
+    };
+  }
+
+  async verify(orderId: string, reference: string) {
+    const res = await this.pool.query(
+      `UPDATE payments SET status = 'paid', reference = $2, paid_at = now()
+       WHERE order_id = $1 AND status IN ('pending', 'unpaid')
+       RETURNING id`,
+      [orderId, reference],
+    );
+    if (!res.rows.length) return null;
+    await this.pool.query(`UPDATE orders SET status = 'processing', updated_at = now() WHERE id = $1 AND status = 'pending'`, [orderId]);
+    return this.getByOrder(orderId);
+  }
+
+  transferDetails() {
+    return {
+      bankName: 'GTBank',
+      accountName: 'QUEENS TOUCH BOUTIQUE',
+      accountNumber: '0123456789',
+    };
+  }
+}
+```
+
+- [ ] **Step 4: Write `backend/src/services/paymentService.ts`**
+
+```ts
+import { ConflictError, NotFoundError } from '../utils/errors.js';
+import type { PaymentRepository } from '../repositories/paymentRepository.js';
+
+export class PaymentService {
+  constructor(private paymentRepo: PaymentRepository) {}
+
+  async getByOrder(orderId: string) {
+    const payment = await this.paymentRepo.getByOrder(orderId);
+    if (!payment) throw new NotFoundError('Payment not found for this order');
+    return payment;
+  }
+
+  async verify(orderId: string, reference: string) {
+    const payment = await this.paymentRepo.verify(orderId, reference);
+    if (!payment) throw new ConflictError('Payment is not in a payable state');
+    return payment;
+  }
+
+  transferDetails() {
+    return this.paymentRepo.transferDetails();
+  }
+}
+```
+
+- [ ] **Step 5: Write `backend/src/controllers/paymentController.ts`**
+
+```ts
+import type { Request, Response } from 'express';
+import type { PaymentService } from '../services/paymentService.js';
+import { ok } from '../utils/apiResponse.js';
+
+export function paymentController(paymentService: PaymentService) {
+  return {
+    async get(req: Request, res: Response): Promise<void> {
+      ok(res, await paymentService.getByOrder(req.params.orderId));
+    },
+    async verify(req: Request, res: Response): Promise<void> {
+      ok(res, await paymentService.verify(req.params.orderId, req.body.reference));
+    },
+    async transferDetails(_req: Request, res: Response): Promise<void> {
+      ok(res, paymentService.transferDetails());
+    },
+  };
+}
+```
+
+- [ ] **Step 6: Write `backend/src/routes/paymentRouter.ts`**
+
+```ts
+import { Router } from 'express';
+import { paymentController } from '../controllers/paymentController.js';
+import { anyAuthenticated } from '../middleware/authStub.js';
+import { validateBody } from '../middleware/validate.js';
+import { paymentVerifySchema } from '../validation/schemas.js';
+import type { PaymentService } from '../services/paymentService.js';
+import { asyncHandler } from '../utils/asyncHandler.js';
+
+export function paymentRouter(paymentService: PaymentService): Router {
+  const router = Router();
+  const c = paymentController(paymentService);
+
+  router.get('/transfer-details', anyAuthenticated, asyncHandler(c.transferDetails));
+  router.get('/:orderId', anyAuthenticated, asyncHandler(c.get));
+  router.post('/:orderId/verify', anyAuthenticated, validateBody(paymentVerifySchema), asyncHandler(c.verify));
+
+  return router;
+}
+```
+NOTE: `/transfer-details` must be registered BEFORE `/:orderId`.
+
+- [ ] **Step 7: Register in `backend/src/app.ts`** (pattern identical to prior tasks).
+
+- [ ] **Step 8: Run tests to verify they pass**
+
+Run: `npm test`
+Expected: payments tests pass.
+
+**Verification checkpoint:** green.
+
+---
+
+### Task 16: Installments vertical slice
+
+**Files:**
+- Create: `backend/src/repositories/installmentRepository.ts`
+- Create: `backend/src/services/installmentService.ts`
+- Create: `backend/src/controllers/installmentController.ts`
+- Create: `backend/src/routes/installmentRouter.ts`
+- Modify: `backend/src/app.ts`
+- Modify: `backend/src/validation/schemas.ts` (add `installmentPlanSchema`, `installmentPaySchema`)
+- Create: `backend/src/routes/installmentRouter.test.ts`
+
+**Prerequisite check:** confirm `installment_plans` and `installment_schedules` tables were created in schema Task 7. Schema:
+```
+installment_plans(id, order_id UNIQUE, customer_id, total_amount, plan_count, down_payment, status 'active'|'paid'|'cancelled', created_at)
+installment_schedules(id, plan_id, due_amount, due_date, remaining_amount, status 'pending'|'paid'|'overdue', paid_at)
+```
+
+**Interfaces:**
+- Consumes: `Pool`, `ok`, `asyncHandler`, `anyAuthenticated`, `validateBody`, `NotFoundError`, `ConflictError`, models.
+- Produces:
+  - `InstallmentRepository(pool)`:
+    - `createPlan(orderId, customerId, planCount)` — order must exist, belong to customer, be `processing` (paid), and have no existing plan; split `total` into `planCount` equal parts (last part absorbs rounding via a `down_payment`), insert plan + schedules with monthly `due_date`s; `down_payment` = first schedule amount.
+    - `listPlans(orderId, customerId)`, `getPlan(planId, customerId)`, `paySchedule(scheduleId, customerId, amount)` — lock schedule; reject if amount < remaining; mark `paid` when `amount >= remaining`; after each payment, if all schedules paid → plan `status='paid'`.
+  - `InstallmentService(installmentRepo)` — wraps errors.
+  - `installmentRouter(installmentService): Router` mounted at `/api/installments`:
+    - `POST /orders/:orderId/plans` (body `{plans}`)
+    - `GET /orders/:orderId/plans`
+    - `GET /plans/:planId`
+    - `POST /schedules/:scheduleId/pay` (body `{amount}`)
+
+- [ ] **Step 1: Write the failing test**
+
+`backend/src/routes/installmentRouter.test.ts`:
+```ts
+import request from 'supertest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { Pool } from 'pg';
+import { loadPgMem, schemaPath } from '../db/pgMem.js';
+import { createApp } from '../app.js';
+
+describe('installments API', () => {
+  let pool: Pool;
+  let app: ReturnType<typeof createApp>;
+  const customer = { 'x-user-id': '00000000-0000-0000-0000-000000000201', 'x-user-role': 'customer' };
+
+  async function makePaidOrder() {
+    const orderRes = await request(app).post('/api/orders').set(customer).send({
+      items: [{ productId: '00000000-0000-0000-0000-000000000501', variantId: '00000000-0000-0000-0000-000000000601', quantity: 1 }],
+      deliveryAddress: { fullName: 'Amara', phone: '080', line1: '1 St', city: 'Lagos', state: 'Lagos' },
+      paymentMethod: 'transfer',
+    });
+    const orderId = orderRes.body.data.id;
+    await request(app).post(`/api/payments/${orderId}/verify`).set(customer).send({ reference: 'REF-X' });
+    return orderId;
+  }
+
+  beforeAll(async () => {
+    pool = loadPgMem(schemaPath());
+    app = createApp(pool);
+  });
+  afterAll(async () => {
+    await pool.end();
+  });
+
+  it('creates a 2-payment installment plan', async () => {
+    const orderId = await makePaidOrder();
+    const res = await request(app).post(`/api/installments/orders/${orderId}/plans`).set(customer).send({ plans: 2 });
+    expect(res.status).toBe(201);
+    expect(res.body.data.schedules).toHaveLength(2);
+  });
+
+  it('lists the plan for the order', async () => {
+    const orders = await request(app).get('/api/orders').set(customer);
+    const orderId = orders.body.data[0].id;
+    const res = await request(app).get(`/api/installments/orders/${orderId}/plans`).set(customer);
+    expect(res.status).toBe(200);
+    expect(res.body.data.planCount).toBe(2);
+  });
+
+  it('rejects a second plan on the same order', async () => {
+    const orders = await request(app).get('/api/orders').set(customer);
+    const orderId = orders.body.data[0].id;
+    const res = await request(app).post(`/api/installments/orders/${orderId}/plans`).set(customer).send({ plans: 3 });
+    expect(res.status).toBe(409);
+  });
+
+  it('pays off both schedules and marks the plan paid', async () => {
+    const orders = await request(app).get('/api/orders').set(customer);
+    const orderId = orders.body.data[0].id;
+    const plan = await request(app).get(`/api/installments/orders/${orderId}/plans`).set(customer);
+    for (const schedule of plan.body.data.schedules) {
+      const pay = await request(app).post(`/api/installments/schedules/${schedule.id}/pay`).set(customer).send({ amount: schedule.dueAmount });
+      expect(pay.status).toBe(200);
+      expect(pay.body.data.status).toBe('paid');
+    }
+    const planAfter = await request(app).get(`/api/installments/orders/${orderId}/plans`).set(customer);
+    expect(planAfter.body.data.status).toBe('paid');
+  });
+});
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `npm test`
+Expected: FAIL — `/api/installments` returns 404.
+
+- [ ] **Step 3: Extend `backend/src/validation/schemas.ts`**
+
+```ts
+export const installmentPlanSchema = z.object({
+  plans: z.number().int().min(2).max(6),
+});
+export const installmentPaySchema = z.object({
+  amount: z.number().positive(),
+});
+```
+
+- [ ] **Step 4: Write `backend/src/repositories/installmentRepository.ts`**
+
+Key logic (single transaction per operation):
+```ts
+async createPlan(orderId: string, customerId: string, planCount: number) {
+  const client = await this.pool.connect();
+  try {
+    await client.query('BEGIN');
+    const orderRes = await client.query(
+      'SELECT total, status FROM orders WHERE id = $1 AND customer_id = $2 FOR UPDATE',
+      [orderId, customerId],
+    );
+    if (!orderRes.rows.length) throw new NotFoundError('Order not found');
+    if (orderRes.rows[0].status !== 'processing') throw new ConflictError('Order must be paid before splitting into installments');
+    const dup = await client.query('SELECT id FROM installment_plans WHERE order_id = $1', [orderId]);
+    if (dup.rows.length) throw new ConflictError('An installment plan already exists for this order');
+
+    const total = Number(orderRes.rows[0].total);
+    const base = Math.floor((total / planCount) * 100) / 100;
+    const first = Math.round((total - base * (planCount - 1)) * 100) / 100;
+    const planId = randomUUID();
+    await client.query(
+      `INSERT INTO installment_plans (id, order_id, customer_id, total_amount, plan_count, down_payment, status)
+       VALUES ($1,$2,$3,$4,$5,$6,'active')`,
+      [planId, orderId, customerId, total, planCount, first],
+    );
+    for (let i = 0; i < planCount; i++) {
+      const due = i === 0 ? first : base;
+      const dueDate = new Date(Date.now() + (i + 1) * 30 * 86400000);
+      await client.query(
+        `INSERT INTO installment_schedules (id, plan_id, due_amount, due_date, remaining_amount, status)
+         VALUES ($1,$2,$3,$4,$3,'pending')`,
+        [randomUUID(), planId, due, dueDate],
+      );
+    }
+    await client.query('COMMIT');
+    return this.getPlan(planId, customerId);
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+```
+Implement `getPlan(planId, customerId)` (plan + `schedules: [{id, dueAmount, dueDate, remainingAmount, status}]`) and `paySchedule(scheduleId, customerId, amount)`:
+- `UPDATE installment_schedules s SET remaining_amount = remaining_amount - $2, status = CASE WHEN remaining_amount - $2 <= 0 THEN 'paid' ELSE 'pending' END, paid_at = CASE WHEN remaining_amount - $2 <= 0 THEN now() ELSE paid_at END FROM installment_plans p WHERE s.id = $1 AND p.id = s.plan_id AND p.customer_id = $3 AND s.status <> 'paid' AND remaining_amount - $2 >= 0 RETURNING s.*`
+- if no row returned → `ConflictError` (insufficient amount or already paid or not owner).
+- then check all schedules for the plan; if all `paid` → `UPDATE installment_plans SET status='paid'`.
+
+- [ ] **Step 5: Write `InstallmentService`** (thin passthrough; throw `ConflictError('Amount exceeds remaining balance')` on null from `paySchedule`).
+
+- [ ] **Step 6: Write `installmentController.ts` + `installmentRouter.ts`** (roles: `anyAuthenticated`; ownership enforced via customer id in queries).
+
+- [ ] **Step 7: Register in `backend/src/app.ts`** mounted at `/api/installments`.
+
+- [ ] **Step 8: Run tests to verify they pass**
+
+Run: `npm test`
+Expected: installments tests pass.
+
+**Verification checkpoint:** green.
+
+---
+
+### Task 17: Reviews vertical slice
+
+**Files:**
+- Create: `backend/src/repositories/reviewRepository.ts`
+- Create: `backend/src/services/reviewService.ts`
+- Create: `backend/src/controllers/reviewController.ts`
+- Create: `backend/src/routes/reviewRouter.ts`
+- Modify: `backend/src/app.ts`
+- Modify: `backend/src/validation/schemas.ts` (add `reviewCreateSchema`)
+- Create: `backend/src/routes/reviewRouter.test.ts`
+
+**Interfaces:**
+- Consumes: `Pool`, `ok`, `asyncHandler`, `requireRole`, `validateBody`, `NotFoundError`, `ConflictError`, models.
+- Produces:
+  - `ReviewRepository(pool)`:
+    - `add(customerId, productId, {rating, comment})` — inserts a review; sets `is_verified_purchase = TRUE` when the customer has a `delivered` order item for the product; `is_approved = TRUE` (auto-approve for the demo); throws `ConflictError` on duplicate `(product_id, customer_id)` via `ON CONFLICT DO NOTHING` + re-select.
+    - `listForProduct(productId)` (approved only, newest first).
+    - `listPending()` (staff moderation queue: unapproved), `moderate(id, approved)`, `report(id)`.
+    - `setReported(id)` / `listReported()`.
+  - `ReviewService(reviewRepo)` — thin passthrough.
+  - `reviewRouter(reviewService): Router`:
+    - `POST /products/:productId/reviews` (any authenticated customer)
+    - `GET /products/:productId/reviews` (public)
+    - `GET /reviews/pending` (staff)
+    - `PATCH /reviews/:id/moderate` (staff; body `{approved}`)
+    - `PATCH /reviews/:id/report` (any authenticated)
+  - Mount at `/api/reviews`. (The existing `GET /api/products/:id/reviews` from Task 10 can delegate to `reviewService.listForProduct` or stay as-is — choose one source of truth: keep `ProductRepository.getReviews` for the product route and reuse the same query shape in `ReviewRepository`.)
+
+- [ ] **Step 1: Write the failing test**
+
+`backend/src/routes/reviewRouter.test.ts`:
+```ts
+import request from 'supertest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { Pool } from 'pg';
+import { loadPgMem, schemaPath } from '../db/pgMem.js';
+import { createApp } from '../app.js';
+
+describe('reviews API', () => {
+  let pool: Pool;
+  let app: ReturnType<typeof createApp>;
+  const customer = { 'x-user-id': '00000000-0000-0000-0000-000000000201', 'x-user-role': 'customer' };
+  const manager = { 'x-user-id': '00000000-0000-0000-0000-000000000203', 'x-user-role': 'store_manager' };
+  const PID = '00000000-0000-0000-0000-000000000501';
+
+  beforeAll(async () => {
+    pool = loadPgMem(schemaPath());
+    app = createApp(pool);
+  });
+  afterAll(async () => {
+    await pool.end();
+  });
+
+  it('creates a verified purchase review after a delivered order', async () => {
+    const orderRes = await request(app).post('/api/orders').set(customer).send({
+      items: [{ productId: PID, variantId: '00000000-0000-0000-0000-000000000601', quantity: 1 }],
+      deliveryAddress: { fullName: 'Amara', phone: '080', line1: '1 St', city: 'Lagos', state: 'Lagos' },
+      paymentMethod: 'cash',
+    });
+    const orderId = orderRes.body.data.id;
+    await request(app).patch(`/api/orders/${orderId}/status`).set(manager).send({ status: 'delivered' });
+
+    const res = await request(app)
+      .post(`/api/reviews/products/${PID}/reviews`)
+      .set(customer)
+      .send({ rating: 5, comment: 'Love it!' });
+    expect(res.status).toBe(201);
+    expect(res.body.data.isVerifiedPurchase).toBe(true);
+  });
+
+  it('lists reviews for a product', async () => {
+    const res = await request(app).get(`/api/reviews/products/${PID}/reviews`).set(customer);
+    expect(res.status).toBe(200);
+    expect(res.body.data.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('rejects duplicate reviews', async () => {
+    const res = await request(app)
+      .post(`/api/reviews/products/${PID}/reviews`)
+      .set(customer)
+      .send({ rating: 4, comment: 'again' });
+    expect(res.status).toBe(409);
+  });
+
+  it('reports a review', async () => {
+    const list = await request(app).get(`/api/reviews/products/${PID}/reviews`).set(customer);
+    const reviewId = list.body.data[0].id;
+    const res = await request(app).patch(`/api/reviews/${reviewId}/report`).set(customer);
+    expect(res.status).toBe(200);
+    expect(res.body.data.isReported).toBe(true);
+  });
+});
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `npm test`
+Expected: FAIL — `/api/reviews` returns 404.
+
+- [ ] **Step 3: Extend `backend/src/validation/schemas.ts`**
+
+```ts
+export const reviewCreateSchema = z.object({
+  rating: z.number().int().min(1).max(5),
+  comment: z.string().min(1),
+});
+```
+
+- [ ] **Step 4: Write `backend/src/repositories/reviewRepository.ts`**
+
+```ts
+import { randomUUID } from 'node:crypto';
+import type { Pool } from 'pg';
+import { ConflictError, NotFoundError } from '../utils/errors.js';
+import { toNumber } from '../models/index.js';
+
+export class ReviewRepository {
+  constructor(private pool: Pool) {}
+
+  async add(customerId: string, productId: string, input: { rating: number; comment: string }) {
+    const product = await this.pool.query('SELECT id FROM products WHERE id = $1', [productId]);
+    if (!product.rows.length) throw new NotFoundError('Product not found');
+
+    const verified = await this.pool.query(
+      `SELECT 1
+       FROM order_items oi
+       JOIN orders o ON o.id = oi.order_id
+       WHERE oi.product_id = $1 AND o.customer_id = $2 AND o.status = 'delivered'
+       LIMIT 1`,
+      [productId, customerId],
+    );
+
+    const res = await this.pool.query(
+      `INSERT INTO reviews (id, product_id, customer_id, rating, comment, is_verified_purchase, is_approved)
+       VALUES ($1,$2,$3,$4,$5,$6, TRUE)
+       ON CONFLICT (product_id, customer_id) DO NOTHING
+       RETURNING id`,
+      [randomUUID(), productId, customerId, input.rating, input.comment, verified.rows.length > 0],
+    );
+    if (!res.rows.length) throw new ConflictError('You already reviewed this product');
+    return this.getById(res.rows[0].id);
+  }
+
+  async getById(id: string) {
+    const res = await this.pool.query(
+      `SELECT id, product_id, customer_id, rating, comment, is_verified_purchase, is_approved, is_reported, created_at
+       FROM reviews WHERE id = $1`,
+      [id],
+    );
+    if (!res.rows.length) return null;
+    return this.map(res.rows[0]);
+  }
+
+  async listForProduct(productId: string) {
+    const res = await this.pool.query(
+      `SELECT id, product_id, customer_id, rating, comment, is_verified_purchase, is_approved, is_reported, created_at
+       FROM reviews WHERE product_id = $1 AND is_approved = TRUE ORDER BY created_at DESC`,
+      [productId],
+    );
+    return res.rows.map((r) => this.map(r));
+  }
+
+  async listPending() {
+    const res = await this.pool.query(
+      `SELECT id, product_id, customer_id, rating, comment, is_verified_purchase, is_approved, is_reported, created_at
+       FROM reviews WHERE is_approved = FALSE ORDER BY created_at ASC`,
+    );
+    return res.rows.map((r) => this.map(r));
+  }
+
+  async moderate(id: string, approved: boolean) {
+    const res = await this.pool.query(
+      `UPDATE reviews SET is_approved = $2 WHERE id = $1 RETURNING id`,
+      [id, approved],
+    );
+    if (!res.rows.length) throw new NotFoundError('Review not found');
+    return this.getById(id);
+  }
+
+  async report(id: string) {
+    const res = await this.pool.query(
+      `UPDATE reviews SET is_reported = TRUE WHERE id = $1 RETURNING id`,
+      [id],
+    );
+    if (!res.rows.length) throw new NotFoundError('Review not found');
+    return this.getById(id);
+  }
+
+  private map(r: Record<string, unknown>) {
+    return {
+      id: r.id,
+      productId: r.product_id,
+      customerId: r.customer_id,
+      rating: toNumber(r.rating),
+      comment: r.comment,
+      isVerifiedPurchase: Boolean(r.is_verified_purchase),
+      isApproved: Boolean(r.is_approved),
+      isReported: Boolean(r.is_reported),
+      createdAt: r.created_at,
+    };
+  }
+}
+```
+
+- [ ] **Step 5: Write `backend/src/services/reviewService.ts`** (thin passthrough of all repository methods).
+
+- [ ] **Step 6: Write `backend/src/controllers/reviewController.ts` + `backend/src/routes/reviewRouter.ts`**
+
+Router:
+```ts
+router.post('/products/:productId/reviews', anyAuthenticated, validateBody(reviewCreateSchema), asyncHandler(c.add));
+router.get('/products/:productId/reviews', asyncHandler(c.list));
+router.get('/reviews/pending', requireRole('super_admin', 'store_manager'), asyncHandler(c.listPending));
+router.patch('/reviews/:id/moderate', requireRole('super_admin', 'store_manager'), validateBody(moderateReviewSchema), asyncHandler(c.moderate));
+router.patch('/reviews/:id/report', anyAuthenticated, asyncHandler(c.report));
+```
+Add `moderateReviewSchema = z.object({ approved: z.boolean() })` to schemas.ts. Mount at `/api/reviews`.
+
+- [ ] **Step 7: Register in `backend/src/app.ts`** mounted at `/api/reviews`.
+
+- [ ] **Step 8: Run tests to verify they pass**
+
+Run: `npm test`
+Expected: reviews tests pass.
+
+**Verification checkpoint:** green.
+
+---
+
+### Task 18: Customers + Addresses vertical slice
+
+**Files:**
+- Create: `backend/src/repositories/customerRepository.ts`
+- Create: `backend/src/services/customerService.ts`
+- Create: `backend/src/controllers/customerController.ts`
+- Create: `backend/src/routes/customerRouter.ts`
+- Modify: `backend/src/app.ts`
+- Modify: `backend/src/validation/schemas.ts` (add `addressSchema`)
+- Create: `backend/src/routes/customerRouter.test.ts`
+
+**Interfaces:**
+- Consumes: `Pool`, `ok`, `asyncHandler`, `requireRole`, `anyAuthenticated`, `validateBody`, `NotFoundError`, models.
+- Produces:
+  - `CustomerRepository(pool)`:
+    - `getProfile(customerId)` — user row + `addresses` array + `orderCount`, `totalSpent`.
+    - `listStaff(params)` — users with role `customer`, paginated (staff view).
+    - `addAddress(customerId, input)` — sets `is_default` handling.
+    - `getAddresses(customerId)`, `setDefaultAddress(customerId, addressId)`.
+    - `getOrders(customerId)` — reuse `OrderRepository.listByCustomer`.
+  - `CustomerService(customerRepo)` — thin passthrough.
+  - `customerRouter(customerService): Router` mounted at `/api/customers`:
+    - `GET /me` (any authenticated)
+    - `GET /me/orders` (any authenticated)
+    - `GET /me/addresses` (any authenticated)
+    - `POST /me/addresses` (any authenticated)
+    - `PATCH /me/addresses/:id/default` (any authenticated)
+    - `GET /` (staff; `?search=&page=`)
+    - `GET /:id` (staff)
+
+- [ ] **Step 1: Write the failing test**
+
+`backend/src/routes/customerRouter.test.ts`:
+```ts
+import request from 'supertest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { Pool } from 'pg';
+import { loadPgMem, schemaPath } from '../db/pgMem.js';
+import { createApp } from '../app.js';
+
+describe('customers API', () => {
+  let pool: Pool;
+  let app: ReturnType<typeof createApp>;
+  const customer = { 'x-user-id': '00000000-0000-0000-0000-000000000201', 'x-user-role': 'customer' };
+  const manager = { 'x-user-id': '00000000-0000-0000-0000-000000000203', 'x-user-role': 'store_manager' };
+
+  beforeAll(async () => {
+    pool = loadPgMem(schemaPath());
+    app = createApp(pool);
+  });
+  afterAll(async () => {
+    await pool.end();
+  });
+
+  it('returns the profile for the authenticated customer', async () => {
+    const res = await request(app).get('/api/customers/me').set(customer);
+    expect(res.status).toBe(200);
+    expect(res.body.data.fullName).toBe('Amara Okafor');
+  });
+
+  it('adds and lists an address', async () => {
+    const add = await request(app).post('/api/customers/me/addresses').set(customer).send({
+      fullName: 'Amara Okafor',
+      phone: '08011111111',
+      line1: '14 Marina Rd',
+      city: 'Lagos',
+      state: 'Lagos',
+      isDefault: true,
+    });
+    expect(add.status).toBe(201);
+    const list = await request(app).get('/api/customers/me/addresses').set(customer);
+    expect(list.status).toBe(200);
+    expect(list.body.data.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('lists customers for staff only', async () => {
+    const denied = await request(app).get('/api/customers').set(customer);
+    expect(denied.status).toBe(403);
+    const res = await request(app).get('/api/customers').set(manager);
+    expect(res.status).toBe(200);
+    expect(res.body.data.rows.length).toBeGreaterThanOrEqual(1);
+  });
+});
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `npm test`
+Expected: FAIL — `/api/customers` returns 404.
+
+- [ ] **Step 3: Extend `backend/src/validation/schemas.ts`**
+
+```ts
+export const addressSchema = z.object({
+  fullName: z.string().min(1),
+  phone: z.string().min(1),
+  line1: z.string().min(1),
+  line2: z.string().optional(),
+  city: z.string().min(1),
+  state: z.string().min(1),
+  country: z.string().optional().default('Nigeria'),
+  isDefault: z.boolean().optional().default(false),
+});
+```
+
+- [ ] **Step 4: Write `backend/src/repositories/customerRepository.ts`**
+
+```ts
+import { randomUUID } from 'node:crypto';
+import type { Pool } from 'pg';
+import { NotFoundError } from '../utils/errors.js';
+
+export class CustomerRepository {
+  constructor(private pool: Pool) {}
+
+  async getProfile(customerId: string) {
+    const userRes = await this.pool.query(
+      `SELECT id, email, full_name, phone, role, is_active, avatar_url, created_at FROM users WHERE id = $1`,
+      [customerId],
+    );
+    if (!userRes.rows.length) throw new NotFoundError('Customer not found');
+    const u = userRes.rows[0];
+    const stats = await this.pool.query(
+      `SELECT count(*)::int AS order_count, COALESCE(sum(total), 0) AS total_spent
+       FROM orders WHERE customer_id = $1`,
+      [customerId],
+    );
+    const addresses = await this.getAddresses(customerId);
+    return {
+      id: u.id,
+      email: u.email,
+      fullName: u.full_name,
+      phone: u.phone,
+      avatarUrl: u.avatar_url ?? null,
+      createdAt: u.created_at,
+      orderCount: stats.rows[0].order_count,
+      totalSpent: Number(stats.rows[0].total_spent),
+      addresses,
+    };
+  }
+
+  async listStaff(params: { search?: string; page?: number; pageSize?: number }) {
+    const conditions = [`role = 'customer'`];
+    const values: unknown[] = [];
+    if (params.search) {
+      values.push(`%${params.search.toLowerCase()}%`);
+      conditions.push(`(LOWER(full_name) LIKE $${values.length} OR LOWER(email) LIKE $${values.length})`);
+    }
+    const where = `WHERE ${conditions.join(' AND ')}`;
+    const page = Math.max(1, params.page ?? 1);
+    const pageSize = Math.min(100, Math.max(1, params.pageSize ?? 20));
+    const offset = (page - 1) * pageSize;
+    const countRes = await this.pool.query(`SELECT count(*)::int AS n FROM users ${where}`, values);
+    const res = await this.pool.query(
+      `SELECT id, email, full_name, phone, is_active, created_at FROM users ${where}
+       ORDER BY full_name LIMIT $${values.length + 1} OFFSET $${values.length + 2}`,
+      [...values, pageSize, offset],
+    );
+    return { rows: res.rows, total: countRes.rows[0].n };
+  }
+
+  async getAddresses(customerId: string) {
+    const res = await this.pool.query(
+      `SELECT * FROM addresses WHERE customer_id = $1 ORDER BY is_default DESC, created_at`,
+      [customerId],
+    );
+    return res.rows.map((r) => ({
+      id: r.id,
+      fullName: r.full_name,
+      phone: r.phone,
+      line1: r.line1,
+      line2: r.line2 ?? null,
+      city: r.city,
+      state: r.state,
+      country: r.country,
+      isDefault: Boolean(r.is_default),
+    }));
+  }
+
+  async addAddress(customerId: string, input: Record<string, unknown>) {
+    const id = randomUUID();
+    if (input.isDefault) {
+      await this.pool.query('UPDATE addresses SET is_default = FALSE WHERE customer_id = $1', [customerId]);
+    }
+    await this.pool.query(
+      `INSERT INTO addresses (id, customer_id, full_name, phone, line1, line2, city, state, country, is_default)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      [
+        id, customerId, input.fullName, input.phone, input.line1, input.line2 ?? null,
+        input.city, input.state, input.country ?? 'Nigeria', Boolean(input.isDefault),
+      ],
+    );
+    return this.getAddresses(customerId);
+  }
+
+  async setDefaultAddress(customerId: string, addressId: string) {
+    await this.pool.query('UPDATE addresses SET is_default = FALSE WHERE customer_id = $1', [customerId]);
+    const res = await this.pool.query(
+      'UPDATE addresses SET is_default = TRUE WHERE id = $1 AND customer_id = $2 RETURNING id',
+      [addressId, customerId],
+    );
+    if (!res.rows.length) throw new NotFoundError('Address not found');
+    return this.getAddresses(customerId);
+  }
+}
+```
+
+- [ ] **Step 5: Write `CustomerService`, `customerController`, `customerRouter`** (patterns identical to prior tasks; `getOrders` delegates to `OrderRepository.listByCustomer`).
+
+- [ ] **Step 6: Register in `backend/src/app.ts`** mounted at `/api/customers`.
+
+- [ ] **Step 7: Run tests to verify they pass**
+
+Run: `npm test`
+Expected: customers tests pass.
+
+**Verification checkpoint:** green.
+
+---
+
+### Task 19: Staff / Users vertical slice
+
+**Files:**
+- Create: `backend/src/repositories/userRepository.ts`
+- Create: `backend/src/services/userService.ts`
+- Create: `backend/src/controllers/userController.ts`
+- Create: `backend/src/routes/userRouter.ts`
+- Modify: `backend/src/app.ts`
+- Modify: `backend/src/validation/schemas.ts` (add `staffCreateSchema`)
+- Create: `backend/src/routes/userRouter.test.ts`
+
+**Interfaces:**
+- Consumes: `Pool`, `ok`, `asyncHandler`, `requireRole`, `validateBody`, `NotFoundError`, `ConflictError`, models.
+- Produces:
+  - `UserRepository(pool)`:
+    - `list({role?, search?, page?, pageSize?})`
+    - `getById(id)`
+    - `create(input)` — creates a staff user (email unique → `ConflictError`).
+    - `setRole(id, role)`, `setActive(id, isActive)`.
+  - `UserService(userRepo)` — thin passthrough.
+  - `userRouter(userService): Router` mounted at `/api/users`:
+    - `GET /` (staff `super_admin|store_manager`)
+    - `POST /` (roles `super_admin`)
+    - `PATCH /:id/role` (roles `super_admin`)
+    - `PATCH /:id/active` (roles `super_admin`)
+
+- [ ] **Step 1: Write the failing test**
+
+`backend/src/routes/userRouter.test.ts`:
+```ts
+import request from 'supertest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { Pool } from 'pg';
+import { loadPgMem, schemaPath } from '../db/pgMem.js';
+import { createApp } from '../app.js';
+
+describe('users API', () => {
+  let pool: Pool;
+  let app: ReturnType<typeof createApp>;
+  const customer = { 'x-user-id': '00000000-0000-0000-0000-000000000201', 'x-user-role': 'customer' };
+  const admin = { 'x-user-id': '00000000-0000-0000-0000-000000000202', 'x-user-role': 'super_admin' };
+
+  beforeAll(async () => {
+    pool = loadPgMem(schemaPath());
+    app = createApp(pool);
+  });
+  afterAll(async () => {
+    await pool.end();
+  });
+
+  it('lists users for admins', async () => {
+    const res = await request(app).get('/api/users').set(admin);
+    expect(res.status).toBe(200);
+    expect(res.body.data.total).toBeGreaterThanOrEqual(5);
+  });
+
+  it('denies non-admins', async () => {
+    const res = await request(app).get('/api/users').set(customer);
+    expect(res.status).toBe(403);
+  });
+
+  it('creates a staff user', async () => {
+    const res = await request(app).post('/api/users').set(admin).send({
+      email: 'new.staff@queenstouch.ng',
+      password: 'Secret123!',
+      fullName: 'New Staff',
+      phone: '08099999999',
+      role: 'inventory_staff',
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.data.role).toBe('inventory_staff');
+  });
+
+  it('rejects duplicate emails', async () => {
+    const res = await request(app).post('/api/users').set(admin).send({
+      email: 'new.staff@queenstouch.ng',
+      password: 'Secret123!',
+      fullName: 'Dup',
+      phone: '08088888888',
+      role: 'store_manager',
+    });
+    expect(res.status).toBe(409);
+  });
+});
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `npm test`
+Expected: FAIL — `/api/users` returns 404.
+
+- [ ] **Step 3: Extend `backend/src/validation/schemas.ts`**
+
+```ts
+export const staffCreateSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8),
+  fullName: z.string().min(1),
+  phone: z.string().min(1),
+  role: z.enum(['super_admin', 'store_manager', 'inventory_staff']),
+});
+```
+
+- [ ] **Step 4: Write `backend/src/repositories/userRepository.ts`**
+
+Key points:
+- `create`: hash the password with Node's built-in `crypto.scryptSync` (store `password_hash` as `scrypt$<salt>$<hash>`); catch the unique-violation error (check `e.code === '23505'`) → `ConflictError('Email already in use')`.
+- Never return `password_hash` in any query result — select explicit columns.
+
+- [ ] **Step 5: Write `UserService`, `userController`, `userRouter`** (patterns identical to prior tasks).
+
+- [ ] **Step 6: Register in `backend/src/app.ts`** mounted at `/api/users`.
+
+- [ ] **Step 7: Run tests to verify they pass**
+
+Run: `npm test`
+Expected: users tests pass.
+
+**Verification checkpoint:** green.
+
+---
+
+### Task 20: Notifications vertical slice
+
+**Files:**
+- Create: `backend/src/repositories/notificationRepository.ts`
+- Create: `backend/src/services/notificationService.ts`
+- Create: `backend/src/controllers/notificationController.ts`
+- Create: `backend/src/routes/notificationRouter.ts`
+- Modify: `backend/src/app.ts`
+- Modify: `backend/src/validation/schemas.ts` (add `notificationCreateSchema`)
+- Create: `backend/src/routes/notificationRouter.test.ts`
+
+**Interfaces:**
+- Consumes: `Pool`, `ok`, `asyncHandler`, `requireRole`, `anyAuthenticated`, `validateBody`, `NotFoundError`, models.
+- Produces:
+  - `NotificationRepository(pool)`:
+    - `listForUser(userId, unreadOnly?)`
+    - `markRead(userId, id)`, `markAllRead(userId)`
+    - `create({recipientUserId?, title, body, type})` — if `recipientUserId` null → broadcast to all customers (`INSERT ... SELECT`).
+  - `NotificationService(notificationRepo)` — thin passthrough.
+  - `notificationRouter(notificationService): Router` mounted at `/api/notifications`:
+    - `GET /` (any authenticated; `?unreadOnly=true`)
+    - `PATCH /:id/read` (any authenticated)
+    - `PATCH /read-all` (any authenticated)
+    - `POST /` (roles `super_admin|store_manager`)
+
+- [ ] **Step 1: Write the failing test**
+
+`backend/src/routes/notificationRouter.test.ts`:
+```ts
+import request from 'supertest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { Pool } from 'pg';
+import { loadPgMem, schemaPath } from '../db/pgMem.js';
+import { createApp } from '../app.js';
+
+describe('notifications API', () => {
+  let pool: Pool;
+  let app: ReturnType<typeof createApp>;
+  const customer = { 'x-user-id': '00000000-0000-0000-0000-000000000201', 'x-user-role': 'customer' };
+  const manager = { 'x-user-id': '00000000-0000-0000-0000-000000000203', 'x-user-role': 'store_manager' };
+
+  beforeAll(async () => {
+    pool = loadPgMem(schemaPath());
+    app = createApp(pool);
+  });
+  afterAll(async () => {
+    await pool.end();
+  });
+
+  it('sends a notification to a customer', async () => {
+    const res = await request(app).post('/api/notifications').set(manager).send({
+      recipientUserId: '00000000-0000-0000-0000-000000000201',
+      title: 'Order update',
+      body: 'Your order is being packed.',
+      type: 'order_status',
+    });
+    expect(res.status).toBe(201);
+  });
+
+  it('lists notifications for the customer', async () => {
+    const res = await request(app).get('/api/notifications').set(customer);
+    expect(res.status).toBe(200);
+    expect(res.body.data.length).toBeGreaterThanOrEqual(1);
+    expect(res.body.data[0].isRead).toBe(false);
+  });
+
+  it('marks a notification read', async () => {
+    const list = await request(app).get('/api/notifications').set(customer);
+    const id = list.body.data[0].id;
+    const res = await request(app).patch(`/api/notifications/${id}/read`).set(customer);
+    expect(res.body.data.isRead).toBe(true);
+  });
+});
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `npm test`
+Expected: FAIL — `/api/notifications` returns 404.
+
+- [ ] **Step 3: Extend `backend/src/validation/schemas.ts`**
+
+```ts
+export const notificationCreateSchema = z.object({
+  recipientUserId: z.string().uuid().optional().nullable(),
+  title: z.string().min(1),
+  body: z.string().min(1),
+  type: z.enum(['order_status', 'promotion', 'stock_alert', 'system']),
+});
+```
+
+- [ ] **Step 4: Write `backend/src/repositories/notificationRepository.ts`**
+
+```ts
+import { randomUUID } from 'node:crypto';
+import type { Pool } from 'pg';
+import { NotFoundError } from '../utils/errors.js';
+
+export class NotificationRepository {
+  constructor(private pool: Pool) {}
+
+  async listForUser(userId: string, unreadOnly = false) {
+    const res = await this.pool.query(
+      `SELECT id, recipient_user_id, title, body, type, is_read, read_at, created_at
+       FROM notifications
+       WHERE recipient_user_id = $1 ${unreadOnly ? 'AND is_read = FALSE' : ''}
+       ORDER BY created_at DESC LIMIT 100`,
+      [userId],
+    );
+    return res.rows.map((r) => ({
+      id: r.id,
+      recipientUserId: r.recipient_user_id,
+      title: r.title,
+      body: r.body,
+      type: r.type,
+      isRead: Boolean(r.is_read),
+      readAt: r.read_at,
+      createdAt: r.created_at,
+    }));
+  }
+
+  async markRead(userId: string, id: string) {
+    const res = await this.pool.query(
+      `UPDATE notifications SET is_read = TRUE, read_at = now()
+       WHERE id = $1 AND recipient_user_id = $2 RETURNING id`,
+      [id, userId],
+    );
+    if (!res.rows.length) throw new NotFoundError('Notification not found');
+    return this.getById(userId, id);
+  }
+
+  async markAllRead(userId: string) {
+    await this.pool.query(
+      `UPDATE notifications SET is_read = TRUE, read_at = now() WHERE recipient_user_id = $1 AND is_read = FALSE`,
+      [userId],
+    );
+    return { updated: true };
+  }
+
+  async create(input: { recipientUserId: string | null; title: string; body: string; type: string }) {
+    if (input.recipientUserId) {
+      await this.pool.query(
+        `INSERT INTO notifications (id, recipient_user_id, title, body, type)
+         VALUES ($1,$2,$3,$4,$5)`,
+        [randomUUID(), input.recipientUserId, input.title, input.body, input.type],
+      );
+      return this.getById(input.recipientUserId, input.recipientUserId);
+    }
+    await this.pool.query(
+      `INSERT INTO notifications (id, recipient_user_id, title, body, type)
+       SELECT gen_random_uuid(), id, $1, $2, $3 FROM users WHERE role = 'customer' AND is_active = TRUE`,
+      [input.title, input.body, input.type],
+    );
+    return { broadcast: true };
+  }
+
+  async getById(userId: string, id: string) {
+    const res = await this.pool.query(
+      `SELECT id, recipient_user_id, title, body, type, is_read, read_at, created_at
+       FROM notifications WHERE id = $1 AND recipient_user_id = $2`,
+      [id, userId],
+    );
+    if (!res.rows.length) return null;
+    const r = res.rows[0];
+    return {
+      id: r.id,
+      recipientUserId: r.recipient_user_id,
+      title: r.title,
+      body: r.body,
+      type: r.type,
+      isRead: Boolean(r.is_read),
+      readAt: r.read_at,
+      createdAt: r.created_at,
+    };
+  }
+}
+```
+
+- [ ] **Step 5: Write `NotificationService`, `notificationController`, `notificationRouter`** (patterns identical to prior tasks; `markRead` throws `NotFoundError` if `getById` returns null).
+
+- [ ] **Step 6: Register in `backend/src/app.ts`** mounted at `/api/notifications`.
+
+- [ ] **Step 7: Run tests to verify they pass**
+
+Run: `npm test`
+Expected: notifications tests pass.
+
+**Verification checkpoint:** green.
+
+---
+
+### Task 21: Reports vertical slice
+
+**Files:**
+- Create: `backend/src/services/reportService.ts`
+- Create: `backend/src/controllers/reportController.ts`
+- Create: `backend/src/routes/reportRouter.ts`
+- Modify: `backend/src/app.ts`
+- Create: `backend/src/routes/reportRouter.test.ts`
+
+**Interfaces:**
+- Consumes: `Pool`, `ok`, `asyncHandler`, `requireRole`, models.
+- Produces:
+  - `ReportService(pool)`:
+    - `salesSummary(from?, to?)` — total revenue, order count, avg order value, revenue by payment method, daily revenue buckets.
+    - `topProducts(limit)` — by revenue & quantity from `order_items` joined to `orders`.
+    - `inventorySummary()` — counts of variants by stock status (in stock / low / out).
+    - `customerSummary()` — customer count, orders per customer, top customers by spend.
+  - `reportRouter(reportService): Router` mounted at `/api/reports` (roles `super_admin|store_manager`):
+    - `GET /sales-summary?from=&to=`
+    - `GET /top-products?limit=`
+    - `GET /inventory-summary`
+    - `GET /customer-summary`
+
+- [ ] **Step 1: Write the failing test**
+
+`backend/src/routes/reportRouter.test.ts`:
+```ts
+import request from 'supertest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { Pool } from 'pg';
+import { loadPgMem, schemaPath } from '../db/pgMem.js';
+import { createApp } from '../app.js';
+
+describe('reports API', () => {
+  let pool: Pool;
+  let app: ReturnType<typeof createApp>;
+  const manager = { 'x-user-id': '00000000-0000-0000-0000-000000000203', 'x-user-role': 'store_manager' };
+  const customer = { 'x-user-id': '00000000-0000-0000-0000-000000000201', 'x-user-role': 'customer' };
+
+  beforeAll(async () => {
+    pool = loadPgMem(schemaPath());
+    app = createApp(pool);
+  });
+  afterAll(async () => {
+    await pool.end();
+  });
+
+  it('returns sales summary with totals', async () => {
+    const res = await request(app).get('/api/reports/sales-summary').set(manager);
+    expect(res.status).toBe(200);
+    expect(res.body.data.totalOrders).toBeGreaterThanOrEqual(0);
+    expect(res.body.data).toHaveProperty('totalRevenue');
+  });
+
+  it('returns top products', async () => {
+    const res = await request(app).get('/api/reports/top-products?limit=5').set(manager);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.data)).toBe(true);
+  });
+
+  it('returns inventory summary', async () => {
+    const res = await request(app).get('/api/reports/inventory-summary').set(manager);
+    expect(res.status).toBe(200);
+    expect(res.body.data).toHaveProperty('outOfStock');
+  });
+
+  it('denies customers', async () => {
+    const res = await request(app).get('/api/reports/sales-summary').set(customer);
+    expect(res.status).toBe(403);
+  });
+});
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `npm test`
+Expected: FAIL — `/api/reports` returns 404.
+
+- [ ] **Step 3: Write `backend/src/services/reportService.ts`**
+
+Implement with direct SQL aggregates. Examples:
+```ts
+async salesSummary(from?: string, to?: string) {
+  const conditions: string[] = [];
+  const values: unknown[] = [];
+  if (from) { values.push(from); conditions.push(`created_at >= $${values.length}`); }
+  if (to) { values.push(to); conditions.push(`created_at < $${values.length}`); }
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+  const total = await this.pool.query(
+    `SELECT count(*)::int AS total_orders,
+            COALESCE(sum(total), 0) AS total_revenue,
+            COALESCE(avg(total), 0) AS avg_order_value
+     FROM orders ${where}`,
+    values,
+  );
+  const byMethod = await this.pool.query(
+    `SELECT payment_method, count(*)::int AS orders, COALESCE(sum(total), 0) AS revenue
+     FROM orders ${where} GROUP BY payment_method`,
+    values,
+  );
+  return {
+    totalOrders: total.rows[0].total_orders,
+    totalRevenue: Number(total.rows[0].total_revenue),
+    avgOrderValue: Number(total.rows[0].avg_order_value),
+    byPaymentMethod: byMethod.rows.map((r) => ({
+      paymentMethod: r.payment_method,
+      orders: r.orders,
+      revenue: Number(r.revenue),
+    })),
+  };
+}
+
+async topProducts(limit = 10) {
+  const res = await this.pool.query(
+    `SELECT p.id, p.name, sum(oi.quantity)::int AS quantity_sold,
+            sum(oi.total_price) AS revenue
+     FROM order_items oi
+     JOIN products p ON p.id = oi.product_id
+     JOIN orders o ON o.id = oi.order_id
+     WHERE o.status <> 'cancelled'
+     GROUP BY p.id, p.name
+     ORDER BY revenue DESC LIMIT $1`,
+    [limit],
+  );
+  return res.rows.map((r) => ({ id: r.id, name: r.name, quantitySold: r.quantity_sold, revenue: Number(r.revenue) }));
+}
+```
+Add `inventorySummary()` (single query with `CASE` buckets) and `customerSummary()` (count + top spenders).
+
+- [ ] **Step 4: Write `reportController` + `reportRouter`** (roles `super_admin|store_manager`).
+
+- [ ] **Step 5: Register in `backend/src/app.ts`** mounted at `/api/reports`.
+
+- [ ] **Step 6: Run tests to verify they pass**
+
+Run: `npm test`
+Expected: reports tests pass.
+
+**Verification checkpoint:** green.
+
+---
+
+### Task 22: Audit log vertical slice
+
+**Files:**
+- Create: `backend/src/repositories/auditRepository.ts`
+- Create: `backend/src/services/auditService.ts`
+- Create: `backend/src/controllers/auditController.ts`
+- Create: `backend/src/routes/auditRouter.ts`
+- Modify: `backend/src/app.ts`
+- Modify: `backend/src/services/inventoryService.ts` (record audit on adjust)
+- Modify: `backend/src/services/orderService.ts` (already records on status change)
+- Create: `backend/src/routes/auditRouter.test.ts`
+
+**Interfaces:**
+- Consumes: `Pool`, `ok`, `asyncHandler`, `requireRole`, models.
+- Produces:
+  - `AuditRepository(pool)`:
+    - `log({entityType, entityId, action, userId, details})`
+    - `list({entityType?, action?, userId?, page?, pageSize?})`
+  - `AuditService(auditRepo)` — thin passthrough.
+  - `auditRouter(auditService): Router` mounted at `/api/audit-logs` (roles `super_admin|store_manager`):
+    - `GET /?entityType=&action=&userId=&page=`
+  - Wire audit recording into `inventoryService.adjust` (after successful adjust) using `auditService.log`.
+
+- [ ] **Step 1: Write the failing test**
+
+`backend/src/routes/auditRouter.test.ts`:
+```ts
+import request from 'supertest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { Pool } from 'pg';
+import { loadPgMem, schemaPath } from '../db/pgMem.js';
+import { createApp } from '../app.js';
+
+describe('audit API', () => {
+  let pool: Pool;
+  let app: ReturnType<typeof createApp>;
+  const manager = { 'x-user-id': '00000000-0000-0000-0000-000000000203', 'x-user-role': 'store_manager' };
+  const staff = { 'x-user-id': '00000000-0000-0000-0000-000000000205', 'x-user-role': 'inventory_staff' };
+
+  beforeAll(async () => {
+    pool = loadPgMem(schemaPath());
+    app = createApp(pool);
+  });
+  afterAll(async () => {
+    await pool.end();
+  });
+
+  it('records an audit entry when inventory is adjusted', async () => {
+    const list = await request(app).get('/api/inventory/variants').set(staff);
+    const variantId = list.body.data[0].variantId;
+    await request(app)
+      .post(`/api/inventory/variants/${variantId}/adjust`)
+      .set(staff)
+      .send({ quantity: -1, reason: 'damaged', changeType: 'adjust' });
+
+    const res = await request(app)
+      .get('/api/audit-logs?action=inventory.adjust')
+      .set(manager);
+    expect(res.status).toBe(200);
+    expect(res.body.data.rows.length).toBeGreaterThanOrEqual(1);
+    expect(res.body.data.rows[0].action).toBe('inventory.adjust');
+  });
+
+  it('denies non-staff', async () => {
+    const res = await request(app)
+      .get('/api/audit-logs')
+      .set({ 'x-user-id': '00000000-0000-0000-0000-000000000201', 'x-user-role': 'customer' });
+    expect(res.status).toBe(403);
+  });
+});
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `npm test`
+Expected: FAIL — `/api/audit-logs` returns 404.
+
+- [ ] **Step 3: Write `backend/src/repositories/auditRepository.ts`**
+
+```ts
+import { randomUUID } from 'node:crypto';
+import type { Pool } from 'pg';
+
+export class AuditRepository {
+  constructor(private pool: Pool) {}
+
+  async log(input: { entityType: string; entityId: string | null; action: string; userId: string | null; details?: Record<string, unknown> }) {
+    await this.pool.query(
+      `INSERT INTO audit_logs (id, entity_type, entity_id, action, user_id, details)
+       VALUES ($1,$2,$3,$4,$5,$6)`,
+      [randomUUID(), input.entityType, input.entityId, input.action, input.userId, input.details ? JSON.stringify(input.details) : null],
+    );
+    return { logged: true };
+  }
+
+  async list(params: { entityType?: string; action?: string; userId?: string; page?: number; pageSize?: number }) {
+    const conditions: string[] = [];
+    const values: unknown[] = [];
+    if (params.entityType) { values.push(params.entityType); conditions.push(`entity_type = $${values.length}`); }
+    if (params.action) { values.push(params.action); conditions.push(`action = $${values.length}`); }
+    if (params.userId) { values.push(params.userId); conditions.push(`user_id = $${values.length}`); }
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    const page = Math.max(1, params.page ?? 1);
+    const pageSize = Math.min(100, Math.max(1, params.pageSize ?? 20));
+    const offset = (page - 1) * pageSize;
+    const countRes = await this.pool.query(`SELECT count(*)::int AS n FROM audit_logs ${where}`, values);
+    const res = await this.pool.query(
+      `SELECT * FROM audit_logs ${where} ORDER BY created_at DESC LIMIT $${values.length + 1} OFFSET $${values.length + 2}`,
+      [...values, pageSize, offset],
+    );
+    return {
+      rows: res.rows.map((r) => ({
+        id: r.id,
+        entityType: r.entity_type,
+        entityId: r.entity_id,
+        action: r.action,
+        userId: r.user_id,
+        details: typeof r.details === 'string' ? JSON.parse(r.details) : r.details,
+        createdAt: r.created_at,
+      })),
+      total: countRes.rows[0].n,
+    };
+  }
+}
+```
+
+- [ ] **Step 4: Write `AuditService`, `auditController`, `auditRouter`** (patterns identical to prior tasks).
+
+- [ ] **Step 5: Wire audit into `backend/src/services/inventoryService.ts`**
+
+Inject `AuditService` into `InventoryService` (constructor param `auditService`) and after a successful `adjust` call `auditService.log({ entityType: 'product_variant', entityId: variantId, action: 'inventory.adjust', userId: staffUserId, details: input })`. Update the `app.ts` wiring accordingly.
+
+- [ ] **Step 6: Register in `backend/src/app.ts`** mounted at `/api/audit-logs`.
+
+- [ ] **Step 7: Run tests to verify they pass**
+
+Run: `npm test`
+Expected: audit tests pass.
+
+**Verification checkpoint:** green.
+
+---
+
+### Task 23: Flutter HTTP client, ApiClient, and model JSON serialization
+
+**Files:**
+- Modify: `pubspec.yaml` (add `http`)
+- Create: `lib/data/api/api_client.dart`
+- Create: `lib/data/api/api_exception.dart`
+- Create: `lib/data/api/model_mappers.dart` (shared parsing helpers)
+- Modify: `lib/models/order.dart` (add `variantId` to `OrderItem`)
+- Modify: `lib/models/product.dart`, `lib/models/category.dart`, `lib/models/brand.dart`, `lib/models/review.dart`, `lib/models/cart.dart`, `lib/models/notification.dart`, `lib/models/audit.dart` (add `fromJson`/`toJson` where needed)
+- Create: `test/data/api/api_client_test.dart`
+
+**Context:**
+- Backend returns camelCase JSON in an envelope: `{ success: true, data: ... }` or `{ success: false, error: { code, message, details? } }`. `NUMERIC` values are numbers (backend converts), dates are ISO-8601 strings or null.
+- Backend auth stub reads `X-User-Id` / `X-User-Role` headers. The `ApiClient` carries a mutable principal so the client can be updated at login without rebuilding the app.
+
+- [ ] **Step 1: Add `http` to `pubspec.yaml`**
+
+```yaml
+dependencies:
+  http: ^1.2.0
+```
+Run `flutter pub get`. Verify nothing else changed.
+
+- [ ] **Step 2: Write `lib/data/api/api_exception.dart`**
+
+```dart
+class ApiException implements Exception {
+  const ApiException({required this.statusCode, required this.code, required this.message, this.details});
+
+  final int statusCode;
+  final String code;
+  final String message;
+  final Object? details;
+
+  @override
+  String toString() => 'ApiException($statusCode $code): $message';
+}
+```
+
+- [ ] **Step 3: Write `lib/data/api/api_client.dart`**
+
+```dart
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:http/http.dart' as http;
+
+import 'api_exception.dart';
+
+class ApiClient {
+  ApiClient({required this.baseUrl, String? userId, String? role})
+      : _userId = userId,
+        _role = role;
+
+  final String baseUrl;
+  String? _userId;
+  String? _role;
+
+  void setPrincipal({String? userId, String? role}) {
+    _userId = userId;
+    _role = role;
+  }
+
+  void clearPrincipal() {
+    _userId = null;
+    _role = null;
+  }
+
+  Map<String, String> get _headers => {
+        'accept': 'application/json',
+        'content-type': 'application/json',
+        if (_userId != null) 'x-user-id': _userId!,
+        if (_role != null) 'x-user-role': _role!,
+      };
+
+  Uri _uri(String path, [Map<String, dynamic>? query]) {
+    var uri = Uri.parse('$baseUrl$path');
+    if (query != null && query.isNotEmpty) {
+      uri = uri.replace(queryParameters: {
+        for (final e in query.entries)
+          e.key: e.value is List
+              ? (e.value as List).join(',')
+              : e.value.toString(),
+      });
+    }
+    return uri;
+  }
+
+  Future<dynamic> get(String path, {Map<String, dynamic>? query}) =>
+      _send(() => http.get(_uri(path, query), headers: _headers));
+
+  Future<dynamic> post(String path, {Object? body, Map<String, dynamic>? query}) =>
+      _send(() => http.post(_uri(path, query), headers: _headers, body: jsonEncode(body ?? {})));
+
+  Future<dynamic> patch(String path, {Object? body, Map<String, dynamic>? query}) =>
+      _send(() => http.patch(_uri(path, query), headers: _headers, body: jsonEncode(body ?? {})));
+
+  Future<dynamic> delete(String path, {Map<String, dynamic>? query}) =>
+      _send(() => http.delete(_uri(path, query), headers: _headers));
+
+  Future<dynamic> _send(Future<http.Response> Function() request) async {
+    final http.Response response;
+    try {
+      response = await request();
+    } on TimeoutException {
+      throw const ApiException(statusCode: 0, code: 'TIMEOUT', message: 'The server took too long to respond.');
+    } on http.ClientException catch (e) {
+      throw ApiException(statusCode: 0, code: 'NETWORK', message: e.message);
+    }
+
+    final Object? decoded;
+    try {
+      decoded = response.body.isEmpty ? null : jsonDecode(response.body);
+    } on FormatException {
+      decoded = null;
+    }
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      if (decoded is Map<String, dynamic> && decoded['success'] == true) {
+        return decoded['data'];
+      }
+      return decoded;
+    }
+
+    if (decoded is Map<String, dynamic> && decoded['success'] == false) {
+      final error = decoded['error'];
+      if (error is Map<String, dynamic>) {
+        throw ApiException(
+          statusCode: response.statusCode,
+          code: (error['code'] as String?) ?? 'ERROR',
+          message: (error['message'] as String?) ?? 'Something went wrong',
+          details: error['details'],
+        );
+      }
+    }
+    throw ApiException(
+      statusCode: response.statusCode,
+      code: 'HTTP_${response.statusCode}',
+      message: 'Request failed with status ${response.statusCode}',
+    );
+  }
+}
+```
+
+- [ ] **Step 4: Write `lib/data/api/model_mappers.dart`**
+
+Shared helpers used by the API repositories:
+```dart
+DateTime? dateFromJson(Object? value) => value is String ? DateTime.tryParse(value) : null;
+
+double priceFromJson(Object? value) {
+  if (value is num) return value.toDouble();
+  if (value is String) return double.tryParse(value) ?? 0;
+  return 0;
+}
+
+int intFromJson(Object? value) {
+  if (value is num) return value.toInt();
+  if (value is String) return int.tryParse(value) ?? 0;
+  return 0;
+}
+```
+
+- [ ] **Step 5: Add `variantId` to `OrderItem` (`lib/models/order.dart`)**
+
+Backend checkout requires `variantId` per item and returns it per `order_items`. Add it to the model:
+```dart
+class OrderItem {
+  const OrderItem({
+    required this.productId,
+    this.variantId,
+    required this.productName,
+    required this.price,
+    required this.quantity,
+    this.variantLabel,
+    this.productImage,
+  });
+
+  final String productId;
+  final String? variantId;
+  final String productName;
+  final double price;
+  final int quantity;
+  final String? variantLabel;
+  final String? productImage;
+  ...
+}
+```
+`variantId` is nullable so existing UI code that constructs `OrderItem` without it still compiles; the checkout repo will require it at the point of order placement.
+
+- [ ] **Step 6: Add `fromJson` to the models**
+
+Add a `factory X.fromJson(Map<String, dynamic> json)` (and `toJson` where the model is sent to the backend) to each model, mapping snake_case → camelCase:
+- `Product`: `price` ← `basePrice` (use `discountPrice ?? basePrice`), `categoryId` ← `categoryId`, `brandId` ← `brandId`, `images` ← `images`, `variants` ← `variants` (id, size, color, shade, `quantity` ← `stockQty`, sku), `rating` ← `rating`, `reviewCount` ← `reviewCount`, `soldCount` ← `soldCount`, `status` ← `status` (map `active`→`active`, `inactive`→`inactive`, `out_of_stock`→`outOfStock`, `discontinued`→`discontinued`), `labels` ← derived from the four booleans + `discount_price != null`.
+- `ProductVariant`: `quantity` ← `stockQty`.
+- `Category`: `id`, `name`, `parentId` ← `parentId`, `description`, `imageUrl`, `isActive`.
+- `Brand`: `id`, `name`, `logoUrl`, `isActive`.
+- `Review`: `id`, `productId`, `customerId`, `customerName` (join from product route), `rating`, `comment`, `isVerifiedPurchase`, `isApproved`, `isReported`, `createdAt`.
+- `CartItem`: from the cart view `{ id, productId, variantId, name, size, color, shade, imageUrl, quantity, unitPrice }` → build a minimal `Product` (id, name, price, categoryId/brandId empty, images `[imageUrl]` if present) + `ProductVariant` (id=variantId, size, color, shade, quantity) + quantity.
+- `Order`/`OrderItem`: `orderNumber`, `customerId`, `items` (with `variantId`), `subtotal`, `discount` ← `discountAmount`, `shippingFee` ← `deliveryFee`, `status` ← `status`, `paymentStatus` (derive: `paid`→`successful`, `unpaid`/`pending`→`pending`), `paymentMethod` ← `paymentMethod`, `createdAt`.
+- `Notification` (`lib/models/notification.dart`): `id`, `title`, `body`, `type`, `isRead`, `createdAt`.
+- `AuditLog` (`lib/models/audit.dart`): `id`, `entityType`, `entityId`, `action`, `userId`, `details`, `createdAt`.
+
+Keep the model shape unchanged; only add serialization.
+
+- [ ] **Step 7: Write `test/data/api/api_client_test.dart`**
+
+Use `MockClient` from `package:http/testing.dart`:
+```dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:botique/data/api/api_client.dart';
+import 'package:botique/data/api/api_exception.dart';
+
+void main() {
+  test('returns data from a successful envelope', () async {
+    final client = ApiClient(
+      baseUrl: 'http://localhost:8080',
+      userId: 'u1',
+      role: 'customer',
+    );
+    final mock = MockClient((request) async {
+      expect(request.headers['x-user-id'], 'u1');
+      expect(request.headers['x-user-role'], 'customer');
+      return http.Response('{"success": true, "data": {"name": "Dress"}}', 200,
+          headers: {'content-type': 'application/json'});
+    });
+    final data = await client.get('/api/categories'); // trigger via injected http client
+    // NOTE: use constructor-injectable http.Client (add optional `http.Client? client` param to ApiClient
+    // defaulting to http.Client()) so tests can pass the MockClient.
+    expect(data, isA<Map<String, dynamic>>());
+  });
+
+  test('throws ApiException on error envelope', () async {
+    // returns 409 {"success": false, "error": {"code": "CONFLICT", "message": "no"}}
+    // expect throwsA(isA<ApiException>().having((e) => e.code, 'code', 'CONFLICT'))
+  });
+}
+```
+To support this, give `ApiClient` an optional injected client:
+```dart
+ApiClient({required this.baseUrl, String? userId, String? role, http.Client? client})
+    : _client = client ?? http.Client();
+final http.Client _client;
+```
+and use `_client.get(...)` etc. instead of the top-level `http.get(...)` functions.
+
+- [ ] **Step 8: Verify**
+
+Run: `flutter analyze`
+Expected: no errors. Run: `flutter test test/data/api/api_client_test.dart`
+Expected: pass.
+
+**Verification checkpoint:** `flutter analyze` clean + api_client tests green.
+
+---
+
+### Task 24: Flutter API catalog repositories
+
+**Files:**
+- Create: `lib/data/repositories/api/api_product_repository.dart`
+- Create: `lib/data/repositories/api/api_category_repository.dart`
+- Create: `lib/data/repositories/api/api_brand_repository.dart`
+- Create: `lib/data/repositories/api/catalog_dto.dart` (shared mapping helpers if needed)
+- Create: `test/data/repositories/api_product_repository_test.dart`
+- Create: `test/data/repositories/api_category_repository_test.dart`
+
+**Interfaces (from `lib/data/repositories/catalog_repository.dart`):**
+```dart
+abstract class ProductRepository {
+  Future<List<Product>> getFeatured();
+  Future<List<Product>> getNewArrivals();
+  Future<List<Product>> getBestSellers();
+  Future<List<Product>> getTrending();
+  Future<List<Product>> getRecommended({String? customerId});
+  Future<CatalogResult> search(ProductFilter filter, ProductSort sort, {int page = 1, int pageSize = 20});
+  Future<Product?> getById(String id);
+  Future<List<Review>> getReviews(String productId);
+}
+abstract class CategoryRepository {
+  Future<List<Category>> getRootCategories();
+  Future<List<Category>> getSubcategories(String parentId);
+  Future<Category?> getById(String id);
+}
+abstract class BrandRepository {
+  Future<List<Brand>> getAll();
+  Future<Brand?> getById(String id);
+}
+```
+
+**Endpoint mapping (backend):**
+- `GET /api/products?featured=true` → `getFeatured`
+- `GET /api/products?newArrival=true` → `getNewArrivals`
+- `GET /api/products?bestSeller=true` → `getBestSellers`
+- `GET /api/products?trending=true` → `getTrending`
+- `GET /api/products?sort=best_selling` → `getRecommended`
+- `GET /api/products` with filter/sort query params → `search` (result envelope: `{ products, total }`)
+- `GET /api/products/:id` → `getById`
+- `GET /api/products/:id/reviews` → `getReviews`
+- `GET /api/categories` → `getRootCategories`
+- `GET /api/categories/:parentId/subcategories` → `getSubcategories`
+- `GET /api/brands` → `getAll`
+
+**Query param mapping (`ProductFilter` + `ProductSort`):**
+- `categoryId`, `brandId`, `minPrice`, `maxPrice`, `minRating`, `search` (`q`), `sizes`, `colors` (join with `,`), `availability` (`true`/`false`), `onSale` when `onSaleOnly`.
+- `ProductSort` → backend sort keys: `newest`→`newest`, `priceLowHigh`→`price_low_high`, `priceHighLow`→`price_high_low`, `bestSelling`→`best_selling`, `bestRated`→`best_rated`, `discount`→`discount`.
+
+- [ ] **Step 1: Write the failing tests**
+
+`test/data/repositories/api_product_repository_test.dart`:
+```dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:botique/data/api/api_client.dart';
+import 'package:botique/data/repositories/api/api_product_repository.dart';
+import 'package:botique/data/repositories/catalog_repository.dart';
+import 'package:botique/models/product.dart';
+
+void main() {
+  test('getFeatured maps envelope products', () async {
+    final mock = MockClient((request) async {
+      expect(request.url.path, '/api/products');
+      expect(request.url.queryParameters['featured'], 'true');
+      return http.Response(
+        '{"success": true, "data": {"products": [{'
+        '"id": "p1", "name": "Dress", "description": "d", "basePrice": 25000, "discountPrice": null,'
+        '"categoryId": "c1", "brandId": "b1", "images": ["http://i/x.jpg"], "variants": [],'
+        '"isFeatured": true, "isNewArrival": false, "isBestSeller": false, "isTrending": false,'
+        '"rating": 4.5, "reviewCount": 3, "soldCount": 10, "stockThreshold": 5, "status": "active"'
+        '}], "total": 1}}',
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+    final repo = ApiProductRepository(ApiClient(baseUrl: 'http://localhost:8080', client: mock));
+    final products = await repo.getFeatured();
+    expect(products, hasLength(1));
+    expect(products.first.name, 'Dress');
+    expect(products.first.price, 25000);
+  });
+
+  test('search passes sort and pagination params', () async {
+    final mock = MockClient((request) async {
+      expect(request.url.queryParameters['sort'], 'price_low_high');
+      expect(request.url.queryParameters['page'], '2');
+      expect(request.url.queryParameters['pageSize'], '10');
+      return http.Response(
+        '{"success": true, "data": {"products": [], "total": 0}}',
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+    final repo = ApiProductRepository(ApiClient(baseUrl: 'http://localhost:8080', client: mock));
+    final result = await repo.search(
+      const ProductFilter(),
+      ProductSort.priceLowHigh,
+      page: 2,
+      pageSize: 10,
+    );
+    expect(result.total, 0);
+  });
+
+  test('getReviews maps reviews', () async {
+    final mock = MockClient((request) async {
+      expect(request.url.path, '/api/products/p1/reviews');
+      return http.Response(
+        '{"success": true, "data": [{'
+        '"id": "r1", "productId": "p1", "customerId": "u1", "customerName": "Amara",'
+        '"rating": 5, "comment": "great", "isVerifiedPurchase": true, "isApproved": true, "isReported": false,'
+        '"createdAt": "2026-01-01T00:00:00Z"}]}',
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+    final repo = ApiProductRepository(ApiClient(baseUrl: 'http://localhost:8080', client: mock));
+    final reviews = await repo.getReviews('p1');
+    expect(reviews.single.rating, 5);
+    expect(reviews.single.isVerifiedPurchase, true);
+  });
+}
+```
+Add a `getById` test (null when `data` is null) and a category test (root list + subcategories). Write them first, run `flutter test` → they fail because the API repositories don't exist yet.
+
+- [ ] **Step 2: Write `lib/data/repositories/api/api_product_repository.dart`**
+
+```dart
+import 'dart:convert';
+
+import '../../models/product.dart';
+import '../../models/review.dart';
+import '../../api/api_client.dart';
+import '../catalog_repository.dart';
+
+class ApiProductRepository implements ProductRepository {
+  ApiProductRepository(this._client);
+
+  final ApiClient _client;
+
+  Future<List<Product>> _listByFlag(String flag) async {
+    final data = await _client.get('/api/products', query: {flag: 'true'});
+    return _productsFromData(data);
+  }
+
+  @override
+  Future<List<Product>> getFeatured() => _listByFlag('featured');
+  @override
+  Future<List<Product>> getNewArrivals() => _listByFlag('newArrival');
+  @override
+  Future<List<Product>> getBestSellers() => _listByFlag('bestSeller');
+  @override
+  Future<List<Product>> getTrending() => _listByFlag('trending');
+
+  @override
+  Future<List<Product>> getRecommended({String? customerId}) async {
+    final data = await _client.get('/api/products', query: {'sort': 'best_selling'});
+    return _productsFromData(data);
+  }
+
+  @override
+  Future<CatalogResult> search(ProductFilter filter, ProductSort sort,
+      {int page = 1, int pageSize = 20}) async {
+    final data = await _client.get('/api/products', query: {
+      ..._filterQuery(filter),
+      'sort': _sortQuery(sort),
+      'page': '$page',
+      'pageSize': '$pageSize',
+    });
+    return CatalogResult(
+      products: _productsFromData(data),
+      total: (data as Map<String, dynamic>)['total'] as int? ?? 0,
+    );
+  }
+
+  @override
+  Future<Product?> getById(String id) async {
+    final data = await _client.get('/api/products/$id');
+    return data == null ? null : Product.fromJson(data as Map<String, dynamic>);
+  }
+
+  @override
+  Future<List<Review>> getReviews(String productId) async {
+    final data = await _client.get('/api/products/$productId/reviews');
+    return (data as List<dynamic>)
+        .map((e) => Review.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  List<Product> _productsFromData(Object? data) {
+    if (data is! Map<String, dynamic>) return [];
+    return (data['products'] as List<dynamic>? ?? [])
+        .map((e) => Product.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Map<String, dynamic> _filterQuery(ProductFilter f) => {
+        if (f.categoryId != null) 'categoryId': f.categoryId!,
+        if (f.brandId != null) 'brandId': f.brandId!,
+        if (f.minPrice != null) 'minPrice': f.minPrice!.toString(),
+        if (f.maxPrice != null) 'maxPrice': f.maxPrice!.toString(),
+        if (f.minRating != null) 'minRating': f.minRating!.toString(),
+        if (f.sizes.isNotEmpty) 'sizes': f.sizes,
+        if (f.colors.isNotEmpty) 'colors': f.colors,
+        if (f.availability != null) 'availability': f.availability!.toString(),
+        if (f.onSaleOnly) 'onSale': 'true',
+        if (f.search != null) 'q': f.search!,
+      };
+
+  String _sortQuery(ProductSort sort) => switch (sort) {
+        ProductSort.newest => 'newest',
+        ProductSort.priceLowHigh => 'price_low_high',
+        ProductSort.priceHighLow => 'price_high_low',
+        ProductSort.bestSelling => 'best_selling',
+        ProductSort.bestRated => 'best_rated',
+        ProductSort.discount => 'discount',
+      };
+}
+```
+
+- [ ] **Step 3: Write `lib/data/repositories/api/api_category_repository.dart` and `api_brand_repository.dart`**
+
+```dart
+class ApiCategoryRepository implements CategoryRepository {
+  ApiCategoryRepository(this._client);
+  final ApiClient _client;
+
+  @override
+  Future<List<Category>> getRootCategories() async {
+    final data = await _client.get('/api/categories');
+    return (data as List<dynamic>).map((e) => Category.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  @override
+  Future<List<Category>> getSubcategories(String parentId) async {
+    final data = await _client.get('/api/categories/$parentId/subcategories');
+    return (data as List<dynamic>).map((e) => Category.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  @override
+  Future<Category?> getById(String id) async {
+    final data = await _client.get('/api/categories/$id');
+    return data == null ? null : Category.fromJson(data as Map<String, dynamic>);
+  }
+}
+
+class ApiBrandRepository implements BrandRepository {
+  ApiBrandRepository(this._client);
+  final ApiClient _client;
+
+  @override
+  Future<List<Brand>> getAll() async {
+    final data = await _client.get('/api/brands');
+    return (data as List<dynamic>).map((e) => Brand.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  @override
+  Future<Brand?> getById(String id) async {
+    final data = await _client.get('/api/brands/$id');
+    return data == null ? null : Brand.fromJson(data as Map<String, dynamic>);
+  }
+}
+```
+NOTE: `GET /api/categories/:id` and `GET /api/brands/:id` do NOT exist on the backend (only lists + subcategories). For `getById`/`BrandRepository.getById`, implement by fetching the full list and filtering client-side:
+```dart
+Future<Category?> getById(String id) async {
+  final list = await getRootCategories();
+  for (final c in list) {
+    if (c.id == id) return c;
+    final subs = await getSubcategories(c.id);
+    for (final s in subs) {
+      if (s.id == id) return s;
+    }
+  }
+  return null;
+}
+```
+(and similarly `BrandRepository.getById` filters `getAll()`). This keeps the interface satisfied without backend changes.
+
+- [ ] **Step 4: Run the tests**
+
+Run: `flutter test test/data/repositories/`
+Expected: all API repository tests pass.
+
+**Verification checkpoint:** `flutter analyze` clean + catalog API repo tests green.
+
+---
+
+### Task 25: Flutter API commerce repositories
+
+**Files:**
+- Create: `lib/data/repositories/api/api_cart_repository.dart`
+- Create: `lib/data/repositories/api/api_wishlist_repository.dart`
+- Create: `lib/data/repositories/api/api_order_repository.dart`
+- Create: `test/data/repositories/api_cart_repository_test.dart`
+- Create: `test/data/repositories/api_order_repository_test.dart`
+
+**Interfaces (from `lib/data/repositories/commerce_repository.dart`):**
+```dart
+abstract class CartRepository {
+  Future<List<CartItem>> getItems();
+  Future<void> add(CartItem item);
+  Future<void> remove(String productId, {String? variantId});
+  Future<void> updateQuantity(String productId, int quantity, {String? variantId});
+  Future<void> clear();
+}
+abstract class WishlistRepository {
+  Future<List<WishlistItem>> getItems();
+  Future<void> add(String productId);
+  Future<void> remove(String productId);
+  Future<bool> contains(String productId);
+}
+abstract class OrderRepository {
+  Future<List<Order>> getOrders({String? customerId});
+  Future<Order?> getById(String id);
+  Future<Order> placeOrder(CheckoutPayload payload);
+  Future<List<Payment>> getPayments({String? customerId});
+  Future<List<Installment>> getInstallments({String? customerId});
+}
+```
+
+**Endpoint mapping (backend):**
+- `GET /api/cart` → `getItems`
+- `POST /api/cart/items` body `{productId, variantId, quantity}` → `add`
+- `PATCH /api/cart/items/:itemId` body `{quantity}` → `updateQuantity`
+- `DELETE /api/cart/items/:itemId` → `remove`
+- `DELETE /api/cart` → `clear`
+- `GET /api/cart/wishlist` → wishlist `getItems`
+- `POST /api/cart/wishlist/:productId` / `DELETE /api/cart/wishlist/:productId` → wishlist `add`/`remove`
+- `POST /api/orders` body = `CheckoutPayload` → `placeOrder`
+- `GET /api/orders` → `getOrders`
+- `GET /api/orders/:id` → `getById`
+- `GET /api/payments/:orderId` → payment lookup (for `getPayments`)
+- `GET /api/installments/orders/:orderId/plans` → installment lookup (for `getInstallments`)
+
+**IMPORTANT — mapping `CartItem` ⇄ backend:**
+- The backend cart view item is `{ id, productId, variantId, name, size, color, shade, imageUrl, quantity, unitPrice }`. Mapping to Flutter `CartItem` builds a minimal `Product` + `ProductVariant`. The reverse mapping (Flutter `CartItem` → backend add request) needs `productId`, `variantId`, `quantity`; the backend returns the fresh cart. Therefore `ApiCartRepository` keeps a **local cache** of the last cart list so `remove(productId, {variantId})` and `updateQuantity(productId, quantity, {variantId})` can look up the backend `item.id` from `(productId, variantId)`. If not cached, fall back to `GET /api/cart` first.
+- `CheckoutPayload.items` are `OrderItem`s which now carry `variantId` (Task 23). The order payload sent to the backend:
+```json
+{
+  "items": [{ "productId": "...", "variantId": "...", "quantity": 1 }],
+  "deliveryAddress": {
+    "fullName": "...", "phone": "...", "line1": "...", "city": "...", "state": "..." 
+  },
+  "promoCode": "QUEEN10",
+  "paymentMethod": "transfer"
+}
+```
+`CheckoutPayload` uses a single `shippingAddress` string — parse it on the client (best-effort `,` split into `line1`/`city`/`state`) or add optional structured fields to `CheckoutPayload`. **Preferred:** add nullable structured fields to `CheckoutPayload` (e.g. `deliveryAddress`) and fall back to the flat string parse so existing call sites compile unchanged. `paymentMethod` maps: `bankTransfer`→`transfer`, `card`→`card`, `cashOnDelivery`→`cash`, `installment`→`transfer` + set `installmentRequested` (installment plan is created via a follow-up call in `getInstallments` path — for the foundation, `placeOrder` maps `installment` to `transfer` and stores the flag; the dedicated installment plan creation is a documented follow-up).
+
+- [ ] **Step 1: Write the failing tests**
+
+`test/data/repositories/api_cart_repository_test.dart`:
+```dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:botique/data/api/api_client.dart';
+import 'package:botique/data/repositories/api/api_cart_repository.dart';
+import 'package:botique/models/product.dart';
+import 'package:botique/models/cart.dart';
+
+void main() {
+  const cartJson = '{"success": true, "data": {"items": [{'
+      '"id": "ci1", "productId": "p1", "variantId": "v1", "name": "Dress",'
+      '"size": "M", "color": null, "shade": null, "imageUrl": "http://i/x.jpg",'
+      '"quantity": 2, "unitPrice": 25000}], "subtotal": 50000, "total": 50000}}';
+
+  test('getItems maps cart view', () async {
+    final mock = MockClient((request) async {
+      expect(request.url.path, '/api/cart');
+      return http.Response(cartJson, 200, headers: {'content-type': 'application/json'});
+    });
+    final repo = ApiCartRepository(ApiClient(baseUrl: 'http://localhost:8080', client: mock));
+    final items = await repo.getItems();
+    expect(items, hasLength(1));
+    expect(items.first.quantity, 2);
+    expect(items.first.product.name, 'Dress');
+    expect(items.first.variant?.id, 'v1');
+    expect(items.first.lineTotal, 50000);
+  });
+
+  test('add posts the correct body', () async {
+    final mock = MockClient((request) async {
+      expect(request.url.path, '/api/cart/items');
+      expect(request.method, 'POST');
+      final body = request.body;
+      expect(body, contains('"variantId":"v1"'));
+      return http.Response(cartJson, 201, headers: {'content-type': 'application/json'});
+    });
+    final repo = ApiCartRepository(ApiClient(baseUrl: 'http://localhost:8080', client: mock));
+    await repo.add(CartItem(
+      product: const Product(id: 'p1', name: 'Dress', description: 'd', price: 25000, categoryId: 'c', brandId: 'b', images: []),
+      variant: const ProductVariant(id: 'v1', quantity: 5),
+      quantity: 1,
+    ));
+  });
+}
+```
+`test/data/repositories/api_order_repository_test.dart`:
+```dart
+test('placeOrder posts checkout payload and maps the order', () async {
+  final mock = MockClient((request) async {
+    expect(request.url.path, '/api/orders');
+    expect(request.method, 'POST');
+    return http.Response(
+      '{"success": true, "data": {'
+      '"id": "o1", "orderNumber": "QT-123", "customerId": "u1", "subtotal": 50000,'
+      '"discountAmount": 0, "deliveryFee": 2500, "total": 52500, "status": "pending",'
+      '"paymentMethod": "transfer", "createdAt": "2026-01-01T00:00:00Z",'
+      '"items": [{"id": "oi1", "orderId": "o1", "productId": "p1", "variantId": "v1",'
+      '"name": "Dress", "quantity": 1, "unitPrice": 50000, "totalPrice": 50000}],'
+      '"payment": {"method": "transfer", "status": "pending", "reference": "PAY-123"}}}',
+      201,
+      headers: {'content-type': 'application/json'},
+    );
+  });
+  final repo = ApiOrderRepository(ApiClient(baseUrl: 'http://localhost:8080', client: mock));
+  final order = await repo.placeOrder(CheckoutPayload(
+    customerName: 'Amara',
+    customerPhone: '080',
+    customerEmail: 'a@b.c',
+    shippingAddress: '12 Broad St, Lagos, Lagos',
+    paymentMethod: PaymentMethod.bankTransfer,
+    items: [OrderItem(productId: 'p1', variantId: 'v1', productName: 'Dress', price: 50000, quantity: 1)],
+  ));
+  expect(order.id, 'o1');
+  expect(order.total, 52500);
+  expect(order.status, OrderStatus.pending);
+});
+```
+
+- [ ] **Step 2: Write `lib/data/repositories/api/api_cart_repository.dart`**
+
+Implements `CartRepository`. Internals:
+- `List<CartItem> _cache = []` refreshed on every cart call.
+- `getItems()` → `GET /api/cart`, map to `CartItem`, store `_cache`.
+- `add(item)` → `POST /api/cart/items` with `{productId, variantId, quantity}`; refresh `_cache`.
+- `updateQuantity(productId, quantity, {variantId})` → find matching `_cache` entry by `(productId, variantId)`, `PATCH /api/cart/items/:id` with `{quantity}`; refresh.
+- `remove(productId, {variantId})` → find entry, `DELETE /api/cart/items/:id`; refresh.
+- `clear()` → `DELETE /api/cart`.
+
+- [ ] **Step 3: Write `lib/data/repositories/api/api_wishlist_repository.dart`**
+
+Implements `WishlistRepository` against `/api/cart/wishlist`. `contains(productId)` can track a local `Set<String>` updated on `getItems`/`add`/`remove`, or `GET /api/cart/wishlist` each time.
+
+- [ ] **Step 4: Write `lib/data/repositories/api/api_order_repository.dart`**
+
+Implements `OrderRepository`:
+- `placeOrder(payload)` → `POST /api/orders` with mapped payload; map response to `Order`.
+- `getOrders({customerId})` → `GET /api/orders`.
+- `getById(id)` → `GET /api/orders/$id` (null when `data` null).
+- `getPayments({customerId})` → fetch orders and their `payment` summaries (order route embeds `payment`), or `GET /api/payments/:orderId` per order; map to `Payment` list.
+- `getInstallments({customerId})` → `GET /api/orders` then `GET /api/installments/orders/:orderId/plans` per order; map plan + schedules to `Installment` (fill `orderNumber`/`customerName` from the order). For the foundation, return an empty list when the plans endpoint 404s (no plan yet) — treat `ApiException` with code `NOT_FOUND` as `[]`.
+
+- [ ] **Step 5: Run the tests**
+
+Run: `flutter test test/data/repositories/`
+Expected: commerce API repo tests pass.
+
+**Verification checkpoint:** `flutter analyze` clean + commerce API repo tests green.
+
+---
+
+### Task 26: Wire `USE_API` flag in `main.dart`
+
+**Files:**
+- Create: `lib/data/api/api_bootstrap.dart`
+- Modify: `lib/main.dart`
+- Verify: `test/widget_test.dart` still passes (defaults to mock repositories)
+
+**Context:**
+- `main.dart` builds the `MultiProvider` tree with mock repositories (see the earlier completion report). We add a compile-time flag so the same binary path uses API repositories when enabled, while the default (and the existing widget test) keeps using mocks — no backend required to boot the app.
+- The API base URL and principal come from `--dart-define`. On login, the client principal (`userId`, `role`) must be set from `AuthService` demo accounts so backend auth-stub enforcement works.
+
+- [ ] **Step 1: Write `lib/data/api/api_bootstrap.dart`**
+
+```dart
+import 'package:flutter/foundation.dart';
+import 'api_client.dart';
+
+/// Whether to use the live backend API instead of the mock repositories.
+const bool kUseApi = bool.fromEnvironment('USE_API');
+
+/// Base URL for the Queens' Touch API backend.
+const String kApiBaseUrl = String.fromEnvironment('API_BASE_URL', defaultValue: 'http://localhost:8080');
+
+ApiClient createApiClient() => ApiClient(baseUrl: kApiBaseUrl);
+```
+Add factory helpers that build all API repositories from a shared `ApiClient`:
+```dart
+// Returns a record/class with product, category, brand, cart, wishlist, order repositories.
+class ApiRepositories {
+  const ApiRepositories({required this.product, required this.category, required this.brand,
+    required this.cart, required this.wishlist, required this.order});
+  final ProductRepository product;
+  final CategoryRepository category;
+  final BrandRepository brand;
+  final CartRepository cart;
+  final WishlistRepository wishlist;
+  final OrderRepository order;
+}
+
+ApiRepositories buildApiRepositories(ApiClient client) => ApiRepositories(
+      product: ApiProductRepository(client),
+      category: ApiCategoryRepository(client),
+      brand: ApiBrandRepository(client),
+      cart: ApiCartRepository(client),
+      wishlist: ApiWishlistRepository(client),
+      order: ApiOrderRepository(client),
+    );
+```
+
+- [ ] **Step 2: Modify `lib/main.dart`**
+
+Read `main.dart` first. Then:
+```dart
+import 'data/api/api_bootstrap.dart';
+import 'data/api/api_client.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(QueensTouchApp(useApi: kUseApi, apiClient: kUseApi ? createApiClient() : null));
+}
+```
+Inside `QueensTouchApp`/provider setup:
+- When `useApi` is true, build `ApiRepositories` from the shared `ApiClient` and provide the API implementations instead of the mock ones.
+- Keep the `AuthService` instance; expose it so the login flow can sync the principal.
+- Add a helper that sets the principal whenever a demo account signs in:
+```dart
+void syncPrincipal(ApiClient client, dynamic user) {
+  client.setPrincipal(userId: user?.id, role: user?.role);
+}
+```
+Wire this into the sign-in / switch-account flow (see `lib/services/auth_service.dart` for the `DemoAccounts`/user shape — use the demo account's `id` and `role`). If `AuthService` does not already expose the current user after sign-in, add a lightweight `onUserChanged` callback or read the current user from the provider state in `main.dart` and call `syncPrincipal` on rebuild.
+- Do NOT change the default path: when `useApi` is false, behavior is byte-for-byte identical to today (mock repos), so `test/widget_test.dart` (which expects the login screen with 'Sign in' and 'QUEENS\' TOUCH') keeps passing.
+
+- [ ] **Step 3: Verify default behavior is unchanged**
+
+Run: `flutter test`
+Expected: widget test still passes.
+
+- [ ] **Step 4: Typecheck the API path**
+
+Run: `flutter analyze`
+Expected: clean.
+
+- [ ] **Step 5: Manual smoke test against a running backend (user step, optional)**
+
+After the backend is running (`npm run dev` on `:8080`) and the DB is seeded:
+```powershell
+flutter run -d windows --dart-define=USE_API=true --dart-define=API_BASE_URL=http://localhost:8080
+```
+Sign in as a demo customer and confirm the catalog loads from the API. If the backend is unreachable, the UI should surface the `ApiException` message rather than crash.
+
+**Verification checkpoint:** default `flutter test` green + `flutter analyze` clean.
+
+---
+
+### Task 27: Final verification + README + real-PostgreSQL verification
+
+**Files:**
+- Modify: `README.md` (root) — add setup/run instructions for the backend, DB, and the `USE_API` Flutter mode.
+- Modify: `backend/README.md` (create if absent) — env setup, `npm` scripts, test strategy.
+- Create: `docs/superpowers/specs/2026-08-15-queens-touch-backend-foundation.md` already exists (design). Keep it as the contract reference.
+
+**Verification matrix:**
+- [ ] **Step 1: Backend static checks + tests**
+
+Run (in `backend/`): `npm run typecheck`
+Expected: no TypeScript errors.
+Run: `npm test`
+Expected: all suites green (schema, repos, routers).
+
+- [ ] **Step 2: Backend boots without DB**
+
+Run: `npm run dev` with the DB unreachable.
+Expected: server logs a warning about the DB and serves `/health` reporting `db: "error"`. API calls that touch the DB return 500 envelopes, not a crash.
+
+- [ ] **Step 3: Flutter checks**
+
+Run (in project root): `flutter analyze`
+Expected: clean.
+Run: `flutter test`
+Expected: all widget + repository tests pass (default mock path).
+
+- [ ] **Step 4: Document the real-PostgreSQL verification (user step)**
+
+In `backend/README.md`, document:
+```powershell
+# 1. Create the database (adjust role/password for the local cluster)
+& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -c "CREATE DATABASE queens_touch;"
+
+# 2. Apply the schema (idempotent)
+& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -d queens_touch -f database\schema.sql
+
+# 3. Configure the backend
+Copy-Item backend\.env.example backend\.env
+# edit backend\.env -> DATABASE_URL=postgres://postgres:yourpassword@localhost:5432/queens_touch
+
+# 4. Run
+cd backend
+npm run dev
+
+# 5. Sanity check
+Invoke-RestMethod http://localhost:8080/health
+Invoke-RestMethod http://localhost:8080/api/products -Headers @{ 'x-user-id' = '00000000-0000-0000-0000-000000000201'; 'x-user-role' = 'customer' }
+```
+Confirm: real Postgres runs `database/schema.sql` end-to-end, seed data lands, and the same routes work against the real DB (the pg-mem tests already prove SQL compatibility — this step is the final environment check).
+
+- [ ] **Step 5: Update root `README.md`**
+
+Add a "Backend & API" section: prerequisites (Node ≥ 18, PostgreSQL ≥ 14), the 4-step setup from Step 4, the Flutter modes:
+```
+flutter run   # mock repositories (default, no backend needed)
+flutter run -d windows --dart-define=USE_API=true   # live backend on http://localhost:8080
+```
+and a note that the API client sends `X-User-Id`/`X-User-Role` headers (dev auth stub) until real auth is implemented.
+
+- [ ] **Step 6: Final full run**
+
+Run all of the above once more end-to-end. Then report the completion status to the user: list every file created/modified, every passing test command, and the manual steps left for the user (create DB, run schema, set `.env`, run backend, run Flutter with `USE_API`).
+
+**Verification checkpoint:** all commands above green; README documents both modes.
+
+---
+
+## Implementation order & dependencies
+
+The tasks above are strictly sequential:
+- Tasks 1–5: backend scaffold (no DB dependency).
+- Tasks 6–9: schema + validation (pg-mem offline).
+- Tasks 10–22: one vertical slice each; every slice depends on Tasks 1–9 being done; each slice ends green.
+- Task 23–25: Flutter API layer (depends on the API contract; can start once Task 10–22 are complete, or in parallel with 16–22 since the contracts are fixed by the design doc).
+- Task 26: wiring (depends on 23–25).
+- Task 27: final verification (depends on all).
+
+Run the full backend + Flutter test suites after every task. No git commits during this phase.

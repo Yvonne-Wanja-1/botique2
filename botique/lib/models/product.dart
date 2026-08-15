@@ -26,6 +26,18 @@ class ProductVariant {
     this.sku,
   });
 
+  factory ProductVariant.fromJson(Map<String, dynamic> json) {
+    final quantity = json['stockQty'] ?? json['quantity'];
+    return ProductVariant(
+      id: json['id'] as String,
+      size: json['size'] as String?,
+      color: json['color'] as String?,
+      shade: json['shade'] as String?,
+      quantity: quantity is num ? quantity.toInt() : 0,
+      sku: json['sku'] as String?,
+    );
+  }
+
   final String id;
   final String? size;
   final String? color;
@@ -62,6 +74,41 @@ class Product {
     this.createdAt,
   });
 
+  factory Product.fromJson(Map<String, dynamic> json) {
+    final basePrice = _asDouble(json['basePrice'] ?? json['price']);
+    final discountPrice = _asNullableDouble(json['discountPrice']);
+    final status = switch (json['status'] as String?) {
+      'inactive' => ProductStatus.inactive,
+      'out_of_stock' => ProductStatus.outOfStock,
+      'discontinued' => ProductStatus.discontinued,
+      _ => ProductStatus.active,
+    };
+    return Product(
+      id: json['id'] as String,
+      name: json['name'] as String? ?? '',
+      description: json['description'] as String? ?? '',
+      price: basePrice,
+      discountPrice: discountPrice,
+      categoryId: json['categoryId'] as String? ?? '',
+      brandId: json['brandId'] as String? ?? '',
+      images: (json['images'] as List?)?.cast<String>() ?? const [],
+      variants: (json['variants'] as List?)
+          ?.whereType<Map<String, dynamic>>()
+          .map(ProductVariant.fromJson)
+          .toList() ??
+          const [],
+      specifications: (json['specifications'] as Map?)?.cast<String, String>() ?? const {},
+      stockThreshold: _asInt(json['stockThreshold'] ?? 5),
+      status: status,
+      labels: _labelsFromJson(json),
+      rating: _asDouble(json['rating'] ?? 0),
+      reviewCount: _asInt(json['reviewCount'] ?? 0),
+      soldCount: _asInt(json['soldCount'] ?? 0),
+      viewCount: _asInt(json['viewCount'] ?? 0),
+      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? ''),
+    );
+  }
+
   final String id;
   final String name;
   final String description;
@@ -95,4 +142,30 @@ class Product {
       hasDiscount ? ((price - discountPrice!) / price * 100).roundToDouble() : 0;
 
   bool hasLabel(ProductLabel label) => labels.contains(label);
+}
+
+double _asDouble(Object? value) {
+  if (value is num) return value.toDouble();
+  return double.tryParse(value?.toString() ?? '') ?? 0;
+}
+
+double? _asNullableDouble(Object? value) {
+  if (value == null) return null;
+  if (value is num) return value.toDouble();
+  return double.tryParse(value.toString());
+}
+
+int _asInt(Object? value) {
+  if (value is num) return value.toInt();
+  return int.tryParse(value?.toString() ?? '') ?? 0;
+}
+
+Set<ProductLabel> _labelsFromJson(Map<String, dynamic> json) {
+  final labels = <ProductLabel>{};
+  if (json['isFeatured'] == true) labels.add(ProductLabel.featured);
+  if (json['isNewArrival'] == true) labels.add(ProductLabel.newArrival);
+  if (json['isBestSeller'] == true) labels.add(ProductLabel.bestSeller);
+  if (json['isTrending'] == true) labels.add(ProductLabel.trending);
+  if (json['discountPrice'] != null) labels.add(ProductLabel.onSale);
+  return labels;
 }

@@ -45,6 +45,7 @@ enum InstallmentStatus {
 class OrderItem {
   const OrderItem({
     required this.productId,
+    this.variantId,
     required this.productName,
     required this.price,
     required this.quantity,
@@ -52,7 +53,29 @@ class OrderItem {
     this.productImage,
   });
 
+  factory OrderItem.fromJson(Map<String, dynamic> json) {
+    return OrderItem(
+      productId: json['productId'] as String,
+      variantId: json['variantId'] as String?,
+      productName: json['productName'] as String? ?? '',
+      price: (json['unitPrice'] as num?)?.toDouble() ?? 0,
+      quantity: (json['quantity'] as num?)?.toInt() ?? 0,
+      variantLabel: json['variantLabel'] as String?,
+      productImage: json['productImage'] as String?,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'productId': productId,
+        if (variantId != null) 'variantId': variantId,
+        'productName': productName,
+        'unitPrice': price,
+        'quantity': quantity,
+        if (variantLabel != null) 'variantLabel': variantLabel,
+      };
+
   final String productId;
+  final String? variantId;
   final String productName;
   final double price;
   final int quantity;
@@ -81,6 +104,53 @@ class Order {
     this.installmentRequested = false,
     required this.createdAt,
   });
+
+  factory Order.fromJson(Map<String, dynamic> json) {
+    final status = switch (json['status'] as String?) {
+      'paid' => OrderStatus.paid,
+      'processing' => OrderStatus.processing,
+      'ready' => OrderStatus.ready,
+      'delivered' => OrderStatus.delivered,
+      'cancelled' => OrderStatus.cancelled,
+      _ => OrderStatus.pending,
+    };
+    final paymentStatusRaw = (json['paymentStatus'] as String?) ?? 'pending';
+    final paymentStatus = switch (paymentStatusRaw) {
+      'successful' || 'paid' => PaymentStatus.successful,
+      'failed' => PaymentStatus.failed,
+      'refunded' => PaymentStatus.refunded,
+      _ => PaymentStatus.pending,
+    };
+    final paymentMethodRaw = (json['paymentMethod'] as String?) ?? 'cash_on_delivery';
+    final paymentMethod = switch (paymentMethodRaw) {
+      'bank_transfer' => PaymentMethod.bankTransfer,
+      'card' => PaymentMethod.card,
+      'installment' => PaymentMethod.installment,
+      _ => PaymentMethod.cashOnDelivery,
+    };
+    return Order(
+      id: json['id'] as String,
+      orderNumber: json['orderNumber'] as String? ?? '',
+      customerId: json['customerId'] as String? ?? '',
+      customerName: json['customerName'] as String? ?? '',
+      customerPhone: json['customerPhone'] as String? ?? '',
+      customerEmail: json['customerEmail'] as String? ?? '',
+      shippingAddress: json['shippingAddress'] as String? ?? '',
+      items: (json['items'] as List?)
+              ?.whereType<Map<String, dynamic>>()
+              .map(OrderItem.fromJson)
+              .toList() ??
+          const [],
+      subtotal: (json['subtotal'] as num?)?.toDouble() ?? 0,
+      discount: (json['discount'] as num?)?.toDouble() ?? 0,
+      shippingFee: (json['shippingFee'] as num?)?.toDouble() ?? 0,
+      status: status,
+      paymentStatus: paymentStatus,
+      paymentMethod: paymentMethod,
+      installmentRequested: json['installmentRequested'] == true,
+      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
+    );
+  }
 
   final String id;
   final String orderNumber;
@@ -114,6 +184,31 @@ class Payment {
     this.createdAt,
   });
 
+  factory Payment.fromJson(Map<String, dynamic> json) {
+    final method = switch (json['method'] as String?) {
+      'bank_transfer' => PaymentMethod.bankTransfer,
+      'card' => PaymentMethod.card,
+      'installment' => PaymentMethod.installment,
+      _ => PaymentMethod.cashOnDelivery,
+    };
+    final status = switch (json['status'] as String?) {
+      'successful' || 'paid' => PaymentStatus.successful,
+      'failed' => PaymentStatus.failed,
+      'refunded' => PaymentStatus.refunded,
+      _ => PaymentStatus.pending,
+    };
+    return Payment(
+      id: json['id'] as String,
+      orderId: json['orderId'] as String? ?? '',
+      customerId: json['customerId'] as String? ?? '',
+      amount: (json['amount'] as num?)?.toDouble() ?? 0,
+      method: method,
+      status: status,
+      reference: json['reference'] as String?,
+      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? ''),
+    );
+  }
+
   final String id;
   final String orderId;
   final String customerId;
@@ -132,6 +227,16 @@ class InstallmentPayment {
     this.paidAt,
     this.isPaid = false,
   });
+
+  factory InstallmentPayment.fromJson(Map<String, dynamic> json) {
+    return InstallmentPayment(
+      id: json['id'] as String,
+      amount: (json['amount'] as num?)?.toDouble() ?? 0,
+      dueDate: DateTime.tryParse(json['dueDate'] as String? ?? '') ?? DateTime.now(),
+      paidAt: DateTime.tryParse(json['paidAt'] as String? ?? ''),
+      isPaid: json['isPaid'] == true,
+    );
+  }
 
   final String id;
   final double amount;
@@ -154,6 +259,35 @@ class Installment {
     this.termMonths = 3,
     required this.createdAt,
   });
+
+  factory Installment.fromJson(Map<String, dynamic> json) {
+    final status = switch (json['status'] as String?) {
+      'pending_approval' => InstallmentStatus.pendingApproval,
+      'approved' => InstallmentStatus.approved,
+      'active' => InstallmentStatus.active,
+      'completed' => InstallmentStatus.completed,
+      'rejected' => InstallmentStatus.rejected,
+      'overdue' => InstallmentStatus.overdue,
+      _ => InstallmentStatus.pendingApproval,
+    };
+    return Installment(
+      id: json['id'] as String,
+      orderId: json['orderId'] as String? ?? '',
+      orderNumber: json['orderNumber'] as String? ?? '',
+      customerId: json['customerId'] as String? ?? '',
+      customerName: json['customerName'] as String? ?? '',
+      totalAmount: (json['totalAmount'] as num?)?.toDouble() ?? 0,
+      amountPaid: (json['amountPaid'] as num?)?.toDouble() ?? 0,
+      schedule: (json['payments'] as List?)
+              ?.whereType<Map<String, dynamic>>()
+              .map(InstallmentPayment.fromJson)
+              .toList() ??
+          const [],
+      status: status,
+      termMonths: (json['termMonths'] as num?)?.toInt() ?? 3,
+      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
+    );
+  }
 
   final String id;
   final String orderId;

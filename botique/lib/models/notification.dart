@@ -17,6 +17,25 @@ class StoreNotification {
     this.isRead = false,
   });
 
+  factory StoreNotification.fromJson(Map<String, dynamic> json) {
+    final type = switch (json['type'] as String?) {
+      'account' => NotificationType.account,
+      'order' => NotificationType.order,
+      'payment' => NotificationType.payment,
+      'installment' => NotificationType.installment,
+      'promotion' => NotificationType.promotion,
+      _ => NotificationType.announcement,
+    };
+    return StoreNotification(
+      id: json['id'] as String,
+      type: type,
+      title: json['title'] as String? ?? '',
+      body: json['body'] as String? ?? '',
+      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
+      isRead: json['isRead'] == true,
+    );
+  }
+
   final String id;
   final NotificationType type;
   final String title;
