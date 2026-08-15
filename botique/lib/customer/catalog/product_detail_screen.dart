@@ -1,0 +1,460 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../../core/theme/theme.dart';
+import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/loading_view.dart';
+import '../../models/product.dart';
+import '../../models/review.dart';
+import '../../services/cart_service.dart';
+import '../../services/catalog_service.dart';
+import '../../services/wishlist_service.dart';
+
+class ProductDetailScreen extends StatefulWidget {
+  const ProductDetailScreen({super.key, required this.productId});
+
+  final String productId;
+
+  @override
+  State<ProductDetailScreen> createState() => _ProductDetailScreenState();
+}
+
+class _ProductDetailScreenState extends State<ProductDetailScreen> {
+  late Future<Product?> _productFuture;
+
+  String? _selectedSize;
+  String? _selectedColor;
+  String? _selectedShade;
+  int _quantity = 1;
+
+  @override
+  void initState() {
+    super.initState();
+    _productFuture = context.read<CatalogService>().getProduct(widget.productId);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Product Details')),
+      body: FutureBuilder<Product?>(
+        future: _productFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const LoadingView();
+          }
+          final product = snapshot.data;
+          if (product == null) {
+            return const EmptyState(
+              icon: Icons.search_off,
+              title: 'Product not found',
+            );
+          }
+          return _ProductDetailBody(
+            product: product,
+            selectedSize: _selectedSize,
+            selectedColor: _selectedColor,
+            selectedShade: _selectedShade,
+            quantity: _quantity,
+            onSizeSelected: (v) => setState(() => _selectedSize = v),
+            onColorSelected: (v) => setState(() => _selectedColor = v),
+            onShadeSelected: (v) => setState(() => _selectedShade = v),
+            onQuantityChanged: (v) => setState(() => _quantity = v),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ProductDetailBody extends StatelessWidget {
+  const _ProductDetailBody({
+    required this.product,
+    required this.selectedSize,
+    required this.selectedColor,
+    required this.selectedShade,
+    required this.quantity,
+    required this.onSizeSelected,
+    required this.onColorSelected,
+    required this.onShadeSelected,
+    required this.onQuantityChanged,
+  });
+
+  final Product product;
+  final String? selectedSize;
+  final String? selectedColor;
+  final String? selectedShade;
+  final int quantity;
+  final ValueChanged<String?> onSizeSelected;
+  final ValueChanged<String?> onColorSelected;
+  final ValueChanged<String?> onShadeSelected;
+  final ValueChanged<int> onQuantityChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final cart = context.watch<CartService>();
+    final wishlist = context.watch<WishlistService>();
+    final sizes = product.variants.where((v) => v.size != null).map((v) => v.size!).toSet().toList();
+    final colors = product.variants.where((v) => v.color != null).map((v) => v.color!).toSet().toList();
+    final shades = product.variants.where((v) => v.shade != null).map((v) => v.shade!).toSet().toList();
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        _Gallery(product: product),
+        const SizedBox(height: 16),
+        Text(
+          product.name,
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            const Icon(Icons.star, color: QueensTouchColors.gold, size: 20),
+            const SizedBox(width: 4),
+            Text('${product.rating.toStringAsFixed(1)}'),
+            const SizedBox(width: 4),
+            Text('(${product.reviewCount} reviews)',
+                style: TextStyle(color: QueensTouchColors.textMuted)),
+            const Spacer(),
+            Text('${product.soldCount} sold',
+                style: TextStyle(color: QueensTouchColors.textMuted, fontSize: 13)),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              '\$${product.effectivePrice.toStringAsFixed(2)}',
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w700,
+                color: QueensTouchColors.plum,
+              ),
+            ),
+            if (product.hasDiscount) ...[
+              const SizedBox(width: 8),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 3),
+                child: Text(
+                  '\$${product.price.toStringAsFixed(2)}',
+                  style: TextStyle(
+                    fontSize: 16,
+                    decoration: TextDecoration.lineThrough,
+                    color: Colors.grey.shade500,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: QueensTouchColors.danger.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  'Save ${product.discountPercent.toStringAsFixed(0)}%',
+                  style: const TextStyle(color: QueensTouchColors.danger, fontSize: 12),
+                ),
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 16),
+        if (sizes.isNotEmpty) _VariantSection(
+          label: 'Select Size',
+          options: sizes,
+          selected: selectedSize,
+          onSelect: onSizeSelected,
+        ),
+        if (colors.isNotEmpty) _VariantSection(
+          label: 'Select Color',
+          options: colors,
+          selected: selectedColor,
+          onSelect: onColorSelected,
+        ),
+        if (shades.isNotEmpty) _VariantSection(
+          label: 'Select Shade',
+          options: shades,
+          selected: selectedShade,
+          onSelect: onShadeSelected,
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Text('Quantity', style: Theme.of(context).textTheme.titleSmall),
+            const Spacer(),
+            _QuantityStepper(value: quantity, onChanged: onQuantityChanged),
+          ],
+        ),
+        const SizedBox(height: 20),
+        Row(
+          children: [
+            Expanded(
+              flex: 3,
+              child: ElevatedButton.icon(
+                onPressed: product.isOutOfStock
+                    ? null
+                    : () {
+                        cart.addProduct(product, quantity: quantity);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Added to cart')),
+                        );
+                      },
+                icon: const Icon(Icons.add_shopping_cart),
+                label: Text(product.isOutOfStock ? 'Out of Stock' : 'Add to Cart'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              flex: 1,
+              child: OutlinedButton(
+                onPressed: () => wishlist.toggle(product.id),
+                style: OutlinedButton.styleFrom(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: FutureBuilder<bool>(
+                  future: wishlist.contains(product.id),
+                  builder: (context, snapshot) {
+                    final inWishlist = snapshot.data ?? false;
+                    return Icon(
+                      inWishlist ? Icons.favorite : Icons.favorite_border,
+                      color: inWishlist ? QueensTouchColors.danger : null,
+                    );
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+        Text('Description', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        Text(product.description, style: const TextStyle(height: 1.5)),
+        if (product.specifications.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Text('Specifications', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          ...product.specifications.entries.map(
+            (e) => Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 140,
+                    child: Text(e.key,
+                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                  ),
+                  Expanded(child: Text(e.value, style: const TextStyle(fontSize: 13))),
+                ],
+              ),
+            ),
+          ),
+        ],
+        const SizedBox(height: 24),
+        _ReviewsSection(productId: product.id),
+      ],
+    );
+  }
+}
+
+class _Gallery extends StatelessWidget {
+  const _Gallery({required this.product});
+
+  final Product product;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 320,
+      decoration: BoxDecoration(
+        color: QueensTouchColors.blushLight,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Center(
+        child: Icon(Icons.checkroom, size: 80, color: QueensTouchColors.plumLight.withValues(alpha: 0.4)),
+      ),
+    );
+  }
+}
+
+class _VariantSection extends StatelessWidget {
+  const _VariantSection({
+    required this.label,
+    required this.options,
+    required this.selected,
+    required this.onSelect,
+  });
+
+  final String label;
+  final List<String> options;
+  final String? selected;
+  final ValueChanged<String?> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final option in options)
+                ChoiceChip(
+                  label: Text(option),
+                  selected: selected == option,
+                  onSelected: (_) => onSelect(option),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _QuantityStepper extends StatelessWidget {
+  const _QuantityStepper({required this.value, required this.onChanged});
+
+  final int value;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: const Color(0xFFE4D5DA)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.remove, size: 18),
+            onPressed: value > 1 ? () => onChanged(value - 1) : null,
+          ),
+          Text('$value', style: const TextStyle(fontWeight: FontWeight.w600)),
+          IconButton(
+            icon: const Icon(Icons.add, size: 18),
+            onPressed: () => onChanged(value + 1),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReviewsSection extends StatelessWidget {
+  const _ReviewsSection({required this.productId});
+
+  final String productId;
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<Review>>(
+      future: context.read<CatalogService>().getReviews(productId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const LoadingView();
+        }
+        final reviews = snapshot.data ?? const <Review>[];
+        if (reviews.isEmpty) {
+          return const EmptyState(
+            icon: Icons.rate_review_outlined,
+            title: 'No reviews yet',
+            message: 'Be the first to review this product after your purchase.',
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Reviews', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            for (final review in reviews) ...[
+              _ReviewTile(review: review),
+              const SizedBox(height: 12),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _ReviewTile extends StatelessWidget {
+  const _ReviewTile({required this.review});
+
+  final Review review;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFEEDFE4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 16,
+                backgroundColor: QueensTouchColors.blush,
+                child: Text(
+                  review.customerName.characters.first,
+                  style: const TextStyle(fontSize: 12, color: QueensTouchColors.textDark),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  review.customerName,
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                ),
+              ),
+              if (review.isVerifiedPurchase)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: QueensTouchColors.success.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.verified, size: 12, color: QueensTouchColors.success),
+                      SizedBox(width: 2),
+                      Text('Verified', style: TextStyle(fontSize: 10, color: QueensTouchColors.success)),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              for (var i = 1; i <= 5; i++)
+                Icon(
+                  i <= review.rating ? Icons.star : Icons.star_border,
+                  size: 16,
+                  color: QueensTouchColors.gold,
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(review.comment, style: const TextStyle(fontSize: 13, height: 1.4)),
+        ],
+      ),
+    );
+  }
+}
