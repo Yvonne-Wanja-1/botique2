@@ -70,7 +70,24 @@ export interface Product {
   createdAt: string;
   updatedAt: string;
 }
-export type ProductRow = Omit<Product, 'variants' | 'images' | 'specifications'> & { specifications: string };
+export type ProductRow = Omit<Product, 'variants' | 'images' | 'specifications' | 'categoryId' | 'brandId' | 'basePrice' | 'discountPrice' | 'stockThreshold' | 'rating' | 'reviewCount' | 'soldCount' | 'viewCount' | 'isFeatured' | 'isNewArrival' | 'isBestSeller' | 'isTrending' | 'createdAt' | 'updatedAt'> & {
+  category_id: string;
+  brand_id: string;
+  base_price: string;
+  discount_price: string | null;
+  stock_threshold: string;
+  rating: string;
+  review_count: string;
+  sold_count: string;
+  view_count: string;
+  is_featured: boolean;
+  is_new_arrival: boolean;
+  is_best_seller: boolean;
+  is_trending: boolean;
+  specifications: string;
+  created_at: string;
+  updated_at: string;
+};
 
 export type OrderStatus = 'pending' | 'paid' | 'processing' | 'ready' | 'delivered' | 'cancelled';
 export type PaymentStatus = 'pending' | 'successful' | 'failed' | 'refunded';

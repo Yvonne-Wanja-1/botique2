@@ -14,13 +14,13 @@ The app ships with in-memory mock repositories by default — no backend needed 
 
 ```powershell
 flutter run                          # mock repositories (default)
-flutter run -d windows --dart-define=USE_API=true    # live backend on http://localhost:8080
+flutter run -d windows --dart-define=USE_API=true    # live backend on http://localhost:3000
 ```
 
 To point at a different backend:
 
 ```powershell
-flutter run -d windows --dart-define=USE_API=true --dart-define=API_BASE_URL=http://localhost:8080
+flutter run -d windows --dart-define=USE_API=true --dart-define=API_BASE_URL=http://localhost:3000
 ```
 
 When `USE_API` is enabled the app talks to the real API and sends `X-User-Id` / `X-User-Role` headers (dev auth stub) until real authentication is implemented. Demo-account sign-in maps to the seeded backend user ids so the stub resolves against the seeded database.
@@ -57,8 +57,8 @@ npm run dev
 ### 5. Sanity check
 
 ```powershell
-Invoke-RestMethod http://localhost:8080/health
-Invoke-RestMethod http://localhost:8080/api/products -Headers @{ 'x-user-id' = '00000000-0000-0000-0000-000000000201'; 'x-user-role' = 'customer' }
+Invoke-RestMethod http://localhost:3000/health
+Invoke-RestMethod http://localhost:3000/api/products -Headers @{ 'x-user-id' = '00000000-0000-0000-0000-000000000201'; 'x-user-role' = 'customer' }
 ```
 
 See `backend/README.md` for env variables, scripts, the API envelope, and the test strategy.

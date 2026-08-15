@@ -57,8 +57,8 @@ The server logs the listen URL. `/health` reports `connected` when PostgreSQL is
 ## Sanity check
 
 ```powershell
-Invoke-RestMethod http://localhost:8080/health
-Invoke-RestMethod http://localhost:8080/api/products -Headers @{ 'x-user-id' = '00000000-0000-0000-0000-000000000201'; 'x-user-role' = 'customer' }
+Invoke-RestMethod http://localhost:3000/health
+Invoke-RestMethod http://localhost:3000/api/products -Headers @{ 'x-user-id' = '00000000-0000-0000-0000-000000000201'; 'x-user-role' = 'customer' }
 ```
 
 ## Auth (dev stub)

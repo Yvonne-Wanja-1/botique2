@@ -15,7 +15,7 @@ import 'api_client.dart';
 const bool kUseApi = bool.fromEnvironment('USE_API');
 
 /// Base URL for the Queens' Touch API backend.
-const String kApiBaseUrl = String.fromEnvironment('API_BASE_URL', defaultValue: 'http://localhost:8080');
+const String kApiBaseUrl = String.fromEnvironment('API_BASE_URL', defaultValue: 'http://localhost:3000');
 
 ApiClient createApiClient() => ApiClient(baseUrl: kApiBaseUrl);
 
