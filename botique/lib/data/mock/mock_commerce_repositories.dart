@@ -95,6 +95,8 @@ class MockOrderRepository implements OrderRepository {
   @override
   Future<Order> placeOrder(CheckoutPayload payload) async {
     _orderSeq++;
+    final orderTotal = payload.subtotal - payload.discount;
+    final paid = payload.paymentMethod == PaymentMethod.card;
     final order = Order(
       id: 'ord-$_orderSeq',
       orderNumber: 'QT-${DateTime.now().year}-$_orderSeq',
@@ -106,18 +108,101 @@ class MockOrderRepository implements OrderRepository {
       items: payload.items,
       subtotal: payload.subtotal,
       discount: payload.discount,
-      status: payload.installmentRequested ? OrderStatus.pending : OrderStatus.paid,
-      paymentStatus: payload.installmentRequested
-          ? PaymentStatus.pending
-          : payload.paymentMethod == PaymentMethod.cashOnDelivery
-              ? PaymentStatus.pending
-              : PaymentStatus.successful,
+      status: OrderStatus.pending,
+      paymentStatus: paid ? PaymentStatus.successful : PaymentStatus.pending,
       paymentMethod: payload.paymentMethod,
       installmentRequested: payload.installmentRequested,
       createdAt: DateTime.now(),
+      paymentSummary: OrderPaymentSummary(
+        total: orderTotal,
+        verified: paid ? orderTotal : 0,
+        pending: 0,
+        remaining: paid ? 0 : orderTotal,
+      ),
     );
     _orders.add(order);
     return order;
+  }
+
+  @override
+  Future<List<Payment>> getPaymentsForOrder(String orderId) async {
+    return _payments.where((p) => p.orderId == orderId).toList();
+  }
+
+  @override
+  Future<TransferDetails> getTransferDetails() async {
+    return const TransferDetails(
+      bankName: 'Family Bank',
+      paybillNumber: '222111',
+      accountNumber: '65727',
+    );
+  }
+
+  @override
+  Future<Payment> submitPayment(SubmitPaymentPayload payload) async {
+    final payment = Payment(
+      id: 'pay-${DateTime.now().millisecondsSinceEpoch}',
+      orderId: payload.orderId,
+      customerId: 'mock',
+      amount: payload.amount,
+      method: PaymentMethod.paybill,
+      status: PaymentStatus.pendingVerification,
+      reference: payload.reference,
+      paymentDate: payload.paymentDate,
+      confirmationMessage: payload.confirmationMessage,
+      note: payload.note,
+      createdAt: DateTime.now(),
+    );
+    _payments.add(payment);
+    return payment;
+  }
+
+  @override
+  Future<Payment> verifyPayment(String id) async {
+    final idx = _payments.indexWhere((p) => p.id == id);
+    final old = _payments[idx];
+    _payments[idx] = Payment(
+      id: old.id, orderId: old.orderId, customerId: old.customerId, amount: old.amount,
+      method: old.method, status: PaymentStatus.successful, reference: old.reference,
+      paymentDate: old.paymentDate, confirmationMessage: old.confirmationMessage,
+      note: old.note, createdAt: old.createdAt,
+    );
+    return _payments[idx];
+  }
+
+  @override
+  Future<Payment> rejectPayment(String id, {required String reason}) async {
+    final idx = _payments.indexWhere((p) => p.id == id);
+    final old = _payments[idx];
+    _payments[idx] = Payment(
+      id: old.id, orderId: old.orderId, customerId: old.customerId, amount: old.amount,
+      method: old.method, status: PaymentStatus.rejected, reference: old.reference,
+      paymentDate: old.paymentDate, confirmationMessage: old.confirmationMessage,
+      note: old.note, rejectReason: reason, createdAt: old.createdAt,
+    );
+    return _payments[idx];
+  }
+
+  @override
+  Future<Installment> approveInstallment(String id) async {
+    return _setInstallmentStatus(id, InstallmentStatus.active);
+  }
+
+  @override
+  Future<Installment> rejectInstallment(String id, {required String reason}) async {
+    return _setInstallmentStatus(id, InstallmentStatus.rejected);
+  }
+
+  Installment _setInstallmentStatus(String id, InstallmentStatus status) {
+    final idx = _installments.indexWhere((i) => i.id == id);
+    final old = _installments[idx];
+    final updated = Installment(
+      id: old.id, orderId: old.orderId, orderNumber: old.orderNumber, customerId: old.customerId,
+      customerName: old.customerName, totalAmount: old.totalAmount, amountPaid: old.amountPaid,
+      schedule: old.schedule, status: status, termMonths: old.termMonths, createdAt: old.createdAt,
+    );
+    _installments[idx] = updated;
+    return updated;
   }
 
   @override
