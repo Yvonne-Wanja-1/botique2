@@ -83,4 +83,36 @@ describe('orders API', () => {
     expect(res.status).toBe(200);
     expect(res.body.data.status).toBe('delivered');
   });
+
+  it('does not auto-create a payment row for a new order', async () => {
+    const res = await request(app).post('/api/orders').set(customer).send(payload);
+    expect(res.status).toBe(201);
+    const pays = await pool.query('SELECT * FROM payments WHERE order_id = $1', [res.body.data.id]);
+    expect(pays.rows).toHaveLength(0);
+  });
+
+  it('includes an empty payments list and summary on order detail', async () => {
+    const res = await request(app).post('/api/orders').set(customer).send(payload);
+    const orderId = res.body.data.id;
+    const detail = await request(app).get(`/api/orders/${orderId}`).set(customer);
+    expect(detail.status).toBe(200);
+    expect(detail.body.data.payments).toEqual([]);
+    expect(detail.body.data.paymentSummary).toEqual({
+      total: detail.body.data.total,
+      verified: 0,
+      pending: 0,
+      remaining: detail.body.data.total,
+    });
+  });
+
+  it('auto-creates an installment plan when installmentRequested is true', async () => {
+    const res = await request(app)
+      .post('/api/orders')
+      .set(customer)
+      .send({ ...payload, paymentMethod: 'installment', installmentRequested: true });
+    expect(res.status).toBe(201);
+    const plans = await pool.query('SELECT * FROM installments WHERE order_id = $1', [res.body.data.id]);
+    expect(plans.rows).toHaveLength(1);
+    expect(plans.rows[0].term_months).toBe(3);
+  });
 });

@@ -131,8 +131,8 @@ CREATE INDEX idx_product_images_product ON product_images(product_id);
 
 -- ============================ commerce ======================================
 
-CREATE TYPE payment_method AS ENUM ('cash_on_delivery', 'bank_transfer', 'card', 'installment');
-CREATE TYPE payment_status AS ENUM ('pending', 'successful', 'failed', 'refunded');
+CREATE TYPE payment_method AS ENUM ('cash_on_delivery', 'bank_transfer', 'paybill', 'card', 'installment');
+CREATE TYPE payment_status AS ENUM ('pending', 'pending_verification', 'successful', 'partially_paid', 'failed', 'refunded', 'rejected');
 CREATE TYPE order_status AS ENUM ('pending', 'paid', 'processing', 'ready', 'delivered', 'cancelled');
 
 CREATE TABLE carts (
@@ -257,15 +257,24 @@ CREATE TABLE order_items (
 CREATE INDEX idx_order_items_order ON order_items(order_id);
 
 CREATE TABLE payments (
-  id          UUID PRIMARY KEY,
-  order_id    UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-  customer_id UUID NOT NULL REFERENCES users(id),
-  amount      NUMERIC(10,2) NOT NULL CHECK (amount > 0),
-  method      payment_method NOT NULL,
-  status      payment_status NOT NULL DEFAULT 'pending',
-  reference   TEXT UNIQUE,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+  id                    UUID PRIMARY KEY,
+  order_id              UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  customer_id           UUID NOT NULL REFERENCES users(id),
+  amount                NUMERIC(10,2) NOT NULL CHECK (amount > 0),
+  method                payment_method NOT NULL,
+  status                payment_status NOT NULL DEFAULT 'pending',
+  reference             TEXT,
+  payment_date          DATE,
+  confirmation_message  TEXT,
+  note                  TEXT,
+  verified_at           TIMESTAMPTZ,
+  verified_by           UUID REFERENCES users(id),
+  rejected_at           TIMESTAMPTZ,
+  rejected_by           UUID REFERENCES users(id),
+  reject_reason         TEXT,
+  duplicate_of          UUID REFERENCES payments(id),
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at            TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX idx_payments_order ON payments(order_id);
@@ -283,6 +292,9 @@ CREATE TABLE installments (
   status      installment_status NOT NULL DEFAULT 'pending_approval',
   approved_by UUID REFERENCES users(id),
   approved_at TIMESTAMPTZ,
+  rejected_by UUID REFERENCES users(id),
+  rejected_at TIMESTAMPTZ,
+  reject_reason TEXT,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );

@@ -3,6 +3,7 @@ import type { Pool } from 'pg';
 import { toNumber } from '../models/index.js';
 import { ConflictError, NotFoundError, ValidationError } from '../utils/errors.js';
 import type { OrderItemRow, OrderRow, PaymentMethod, PaymentStatus, OrderStatus } from '../models/index.js';
+import type { Payment } from './paymentRepository.js';
 
 export interface CheckoutItemInput {
   productId: string;
@@ -21,20 +22,17 @@ export interface CheckoutInput {
   installmentRequested: boolean;
 }
 
-export interface OrderPayment {
-  id: string;
-  orderId: string;
-  customerId: string;
-  amount: number;
-  method: PaymentMethod;
-  status: PaymentStatus;
-  reference: string | null;
-  createdAt: string;
+export interface PaymentSummary {
+  total: number;
+  verified: number;
+  pending: number;
+  remaining: number;
 }
 
 export interface Order extends OrderRow {
   items: OrderItemRow[];
-  payment: OrderPayment | null;
+  payments: Payment[];
+  paymentSummary: PaymentSummary;
 }
 
 const DELIVERY_FEE = 2500;
@@ -64,7 +62,8 @@ function mapOrder(row: Record<string, unknown>): Order {
     promotionCode: row.promotion_code ? String(row.promotion_code) : null,
     createdAt: String(row.created_at),
     items: [],
-    payment: null,
+    payments: [],
+    paymentSummary: { total: Number(row.total), verified: 0, pending: 0, remaining: Number(row.total) },
   };
 }
 
@@ -93,23 +92,41 @@ export class OrderRepository {
       quantity: toNumber(r.quantity),
       lineTotal: Number(r.line_total),
     }));
-    const pay = await this.pool.query(
-      'SELECT id, order_id, customer_id, amount, method, status, reference, created_at FROM payments WHERE order_id = $1',
+    const pays = await this.pool.query(
+      'SELECT p.*, o.order_number, o.customer_name FROM payments p JOIN orders o ON o.id = p.order_id WHERE p.order_id = $1 ORDER BY p.created_at DESC',
       [id],
     );
-    if (pay.rows.length) {
-      const p = pay.rows[0];
-      order.payment = {
-        id: String(p.id),
-        orderId: String(p.order_id),
-        customerId: String(p.customer_id),
-        amount: Number(p.amount),
-        method: p.method as PaymentMethod,
-        status: p.status as PaymentStatus,
-        reference: p.reference ? String(p.reference) : null,
-        createdAt: String(p.created_at),
-      };
-    }
+    const payments: Payment[] = pays.rows.map((r) => ({
+      id: String(r.id),
+      orderId: String(r.order_id),
+      orderNumber: r.order_number ? String(r.order_number) : null,
+      customerName: r.customer_name ? String(r.customer_name) : null,
+      customerId: String(r.customer_id),
+      amount: Number(r.amount),
+      method: r.method as PaymentMethod,
+      status: r.status as PaymentStatus,
+      reference: r.reference ? String(r.reference) : null,
+      paymentDate: r.payment_date ? String(r.payment_date) : null,
+      confirmationMessage: r.confirmation_message ? String(r.confirmation_message) : null,
+      note: r.note ? String(r.note) : null,
+      verifiedAt: r.verified_at ? String(r.verified_at) : null,
+      verifiedBy: r.verified_by ? String(r.verified_by) : null,
+      rejectedAt: r.rejected_at ? String(r.rejected_at) : null,
+      rejectedBy: r.rejected_by ? String(r.rejected_by) : null,
+      rejectReason: r.reject_reason ? String(r.reject_reason) : null,
+      duplicateOf: r.duplicate_of ? String(r.duplicate_of) : null,
+      createdAt: String(r.created_at),
+      updatedAt: r.updated_at ? String(r.updated_at) : null,
+    }));
+    order.payments = payments;
+    const verified = payments.filter((p) => p.status === 'successful').reduce((s, p) => s + p.amount, 0);
+    const pending = payments.filter((p) => p.status === 'pending_verification').reduce((s, p) => s + p.amount, 0);
+    order.paymentSummary = {
+      total: order.total,
+      verified,
+      pending,
+      remaining: order.total - verified,
+    };
     return order;
   }
 
@@ -191,12 +208,6 @@ export class OrderRepository {
           [item.variantId, item.quantity],
         );
       }
-
-      await client.query(
-        `INSERT INTO payments (id, order_id, customer_id, amount, method, status, reference)
-         VALUES ($1,$2,$3,$4,$5,'pending',$6)`,
-        [randomUUID(), orderId, customerId, total, input.paymentMethod, `PAY-${orderNumber}`],
-      );
 
       await client.query(
         `DELETE FROM cart_items WHERE variant_id IN (${placeholders}) AND cart_id IN (SELECT id FROM carts WHERE user_id = $${variantIds.length + 1})`,

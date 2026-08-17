@@ -73,7 +73,7 @@ export const placeOrderSchema = z.object({
   customerPhone: z.string().min(1),
   customerEmail: z.string().email(),
   shippingAddress: z.string().min(1),
-  paymentMethod: z.enum(['cash_on_delivery', 'bank_transfer', 'card', 'installment']),
+  paymentMethod: z.enum(['cash_on_delivery', 'bank_transfer', 'paybill', 'card', 'installment']),
   promotionCode: z.string().optional().nullable(),
   installmentRequested: z.boolean().default(false),
   items: z
@@ -182,8 +182,17 @@ export const installmentPaySchema = z.object({
   amount: z.number().positive(),
 });
 
-export const paymentVerifySchema = z.object({
-  reference: z.string().optional(),
+export const paymentSubmitSchema = z.object({
+  orderId: uuid,
+  amount: z.number().positive(),
+  paymentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'paymentDate must be YYYY-MM-DD'),
+  reference: z.string().optional().nullable(),
+  confirmationMessage: z.string().min(1),
+  note: z.string().optional().nullable(),
+});
+
+export const paymentRejectSchema = z.object({
+  reason: z.string().min(1),
 });
 
 export const notificationCreateSchema = z.object({

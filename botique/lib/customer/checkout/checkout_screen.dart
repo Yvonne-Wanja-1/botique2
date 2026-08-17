@@ -267,6 +267,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   String _methodLabel(PaymentMethod m) => switch (m) {
         PaymentMethod.cashOnDelivery => 'Cash on Delivery',
         PaymentMethod.bankTransfer => 'Bank Transfer',
+        PaymentMethod.paybill => 'Paybill',
         PaymentMethod.card => 'Card Payment',
         PaymentMethod.installment => 'Installment',
       };

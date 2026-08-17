@@ -73,6 +73,8 @@ export function createApp(pool: Pool, options: { uploadsDir?: string } = {}): ex
   const auditService = new AuditService(auditRepo);
   app.use('/api/audit-logs', auditRouter(auditService));
 
+  const notificationRepo = new NotificationRepository(pool);
+
   const inventoryRepo = new InventoryRepository(pool);
   const inventoryService = new InventoryService(inventoryRepo, auditService);
   app.use('/api/inventory', inventoryRouter(inventoryService));
@@ -82,16 +84,17 @@ export function createApp(pool: Pool, options: { uploadsDir?: string } = {}): ex
   app.use('/api/cart', cartRouter(cartService));
 
   const orderRepo = new OrderRepository(pool);
-  const orderService = new OrderService(orderRepo);
-  app.use('/api/orders', orderRouter(orderService));
-
-  const paymentRepo = new PaymentRepository(pool);
-  const paymentService = new PaymentService(paymentRepo);
-  app.use('/api/payments', paymentRouter(paymentService));
 
   const installmentRepo = new InstallmentRepository(pool);
   const installmentService = new InstallmentService(installmentRepo);
   app.use('/api/installments', installmentRouter(installmentService));
+
+  const orderService = new OrderService(orderRepo, installmentRepo);
+  app.use('/api/orders', orderRouter(orderService));
+
+  const paymentRepo = new PaymentRepository(pool);
+  const paymentService = new PaymentService(paymentRepo, orderRepo, installmentRepo, notificationRepo, auditRepo);
+  app.use('/api/payments', paymentRouter(paymentService));
 
   const reviewRepo = new ReviewRepository(pool);
   const reviewService = new ReviewService(reviewRepo);
@@ -105,7 +108,6 @@ export function createApp(pool: Pool, options: { uploadsDir?: string } = {}): ex
   const userService = new UserService(userRepo);
   app.use('/api/users', userRouter(userService));
 
-  const notificationRepo = new NotificationRepository(pool);
   const notificationService = new NotificationService(notificationRepo);
   app.use('/api/notifications', notificationRouter(notificationService));
 

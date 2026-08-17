@@ -176,6 +176,7 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
   IconData _methodIcon(PaymentMethod m) => switch (m) {
         PaymentMethod.card => Icons.credit_card,
         PaymentMethod.bankTransfer => Icons.account_balance,
+        PaymentMethod.paybill => Icons.qr_code,
         PaymentMethod.cashOnDelivery => Icons.payments,
         PaymentMethod.installment => Icons.calendar_month,
       };
@@ -184,8 +185,11 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
     final (label, color) = switch (status) {
       PaymentStatus.successful => ('Successful', QueensTouchColors.success),
       PaymentStatus.pending => ('Pending', QueensTouchColors.warning),
+      PaymentStatus.pendingVerification => ('Pending Verification', QueensTouchColors.warning),
+      PaymentStatus.partiallyPaid => ('Partially Paid', QueensTouchColors.gold),
       PaymentStatus.failed => ('Failed', QueensTouchColors.danger),
       PaymentStatus.refunded => ('Refunded', Colors.blue.shade700),
+      PaymentStatus.rejected => ('Rejected', QueensTouchColors.danger),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
