@@ -5,9 +5,38 @@ import '../../core/theme/theme.dart';
 import '../../core/theme/responsive.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../data/mock/mock_dashboard_data.dart';
+import '../../data/repositories/commerce_repository.dart';
+import '../../models/order.dart';
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
+
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  late Future<int> _pendingInstallments;
+  late Future<int> _pendingPayments;
+
+  @override
+  void initState() {
+    super.initState();
+    _pendingInstallments = _countInstallments();
+    _pendingPayments = _countPayments();
+  }
+
+  Future<int> _countInstallments() async {
+    final repo = context.read<OrderRepository>();
+    final plans = await repo.getInstallments();
+    return plans.where((p) => p.status == InstallmentStatus.pendingApproval).length;
+  }
+
+  Future<int> _countPayments() async {
+    final repo = context.read<OrderRepository>();
+    final payments = await repo.getPayments();
+    return payments.where((p) => p.status == PaymentStatus.pendingVerification).length;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -34,13 +63,41 @@ class DashboardScreen extends StatelessWidget {
           ),
           const SizedBox(height: 16),
         ],
-        if (data.pendingInstallments > 0) ...[
-          _PendingCard(
-            count: data.pendingInstallments,
-            onTap: () {},
-          ),
-          const SizedBox(height: 16),
-        ],
+        FutureBuilder<int>(
+          future: _pendingInstallments,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) return const SizedBox.shrink();
+            final count = snapshot.data ?? 0;
+            if (count == 0) return const SizedBox.shrink();
+            return Column(
+              children: [
+                _PendingCard(
+                  count: count,
+                  onTap: () {},
+                ),
+                const SizedBox(height: 16),
+              ],
+            );
+          },
+        ),
+        FutureBuilder<int>(
+          future: _pendingPayments,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) return const SizedBox.shrink();
+            final count = snapshot.data ?? 0;
+            if (count == 0) return const SizedBox.shrink();
+            return Column(
+              children: [
+                _PendingCard(
+                  count: count,
+                  message: 'payment',
+                  onTap: () {},
+                ),
+                const SizedBox(height: 16),
+              ],
+            );
+          },
+        ),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -190,19 +247,21 @@ class _AlertCard extends StatelessWidget {
 }
 
 class _PendingCard extends StatelessWidget {
-  const _PendingCard({required this.count, required this.onTap});
+  const _PendingCard({required this.count, required this.onTap, this.message = 'installment request'});
 
   final int count;
+  final String message;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final plural = count == 1 ? '' : 's';
     return Card(
       color: QueensTouchColors.blushLight,
       child: ListTile(
         leading: const Icon(Icons.pending_actions, color: QueensTouchColors.plum),
         title: Text(
-          '$count installment request${count == 1 ? '' : 's'} awaiting approval',
+          '$count $message$plural awaiting ${message == 'payment' ? 'verification' : 'approval'}',
           style: const TextStyle(fontWeight: FontWeight.w600),
         ),
         trailing: const Icon(Icons.chevron_right),

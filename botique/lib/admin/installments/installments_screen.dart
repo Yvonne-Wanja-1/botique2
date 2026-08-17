@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../core/theme/theme.dart';
+import '../../core/utils/currency.dart';
 import '../../core/widgets/dialogs.dart';
+import '../../core/widgets/empty_state.dart';
+import '../../data/repositories/commerce_repository.dart';
 import '../../models/order.dart';
 
 class InstallmentsScreen extends StatefulWidget {
@@ -12,151 +16,154 @@ class InstallmentsScreen extends StatefulWidget {
 }
 
 class _InstallmentsScreenState extends State<InstallmentsScreen> {
-  final List<Installment> _installments = [
-    Installment(
-      id: 'inst1',
-      orderId: 'o5',
-      orderNumber: 'QT-2026-1045',
-      customerId: 'c5',
-      customerName: 'Funke Adetola',
-      totalAmount: 320.00,
-      amountPaid: 0,
-      termMonths: 4,
-      status: InstallmentStatus.pendingApproval,
-      createdAt: DateTime.now().subtract(const Duration(days: 1)),
-      schedule: [
-        for (var m = 1; m <= 4; m++)
-          InstallmentPayment(
-            id: 'ip$m',
-            amount: 80.00,
-            dueDate: DateTime.now().add(Duration(days: 30 * m)),
-          ),
-      ],
-    ),
-    Installment(
-      id: 'inst2',
-      orderId: 'o6',
-      orderNumber: 'QT-2026-1038',
-      customerId: 'c6',
-      customerName: 'Lola Johnson',
-      totalAmount: 240.00,
-      amountPaid: 120.00,
-      termMonths: 3,
-      status: InstallmentStatus.active,
-      createdAt: DateTime.now().subtract(const Duration(days: 45)),
-      schedule: [
-        InstallmentPayment(id: 'ip1', amount: 80.00, dueDate: DateTime.now().subtract(const Duration(days: 15)), isPaid: true, paidAt: DateTime.now().subtract(const Duration(days: 14))),
-        InstallmentPayment(id: 'ip2', amount: 80.00, dueDate: DateTime.now().add(const Duration(days: 15))),
-        InstallmentPayment(id: 'ip3', amount: 80.00, dueDate: DateTime.now().add(const Duration(days: 45))),
-      ],
-    ),
-    Installment(
-      id: 'inst3',
-      orderId: 'o7',
-      orderNumber: 'QT-2026-1030',
-      customerId: 'c7',
-      customerName: 'Ngozi Okafor',
-      totalAmount: 180.00,
-      amountPaid: 180.00,
-      termMonths: 3,
-      status: InstallmentStatus.completed,
-      createdAt: DateTime.now().subtract(const Duration(days: 90)),
-      schedule: [
-        for (var m = 1; m <= 3; m++)
-          InstallmentPayment(
-            id: 'cp$m',
-            amount: 60.00,
-            dueDate: DateTime.now().subtract(Duration(days: 90 - 30 * (m - 1))),
-            isPaid: true,
-            paidAt: DateTime.now().subtract(Duration(days: 90 - 30 * (m - 1) + 2)),
-          ),
-      ],
-    ),
-  ];
+  late Future<List<Installment>> _future;
 
   int _filter = 0;
-  static const _filters = ['All', 'Pending', 'Active', 'Completed', 'Overdue'];
+  static const _filters = ['All', 'Pending', 'Active', 'Completed', 'Rejected', 'Overdue'];
 
-  List<Installment> get _filtered {
-    var list = _installments;
+  @override
+  void initState() {
+    super.initState();
+    _future = context.read<OrderRepository>().getInstallments();
+  }
+
+  Future<void> _reload() async {
+    final future = context.read<OrderRepository>().getInstallments();
+    setState(() => _future = future);
+    await future;
+  }
+
+  List<Installment> _filtered(List<Installment> plans) {
+    var list = plans;
     if (_filter == 1) list = list.where((i) => i.status == InstallmentStatus.pendingApproval).toList();
     if (_filter == 2) list = list.where((i) => i.status == InstallmentStatus.active).toList();
     if (_filter == 3) list = list.where((i) => i.status == InstallmentStatus.completed).toList();
-    if (_filter == 4) list = list.where((i) => i.isOverdue).toList();
+    if (_filter == 4) list = list.where((i) => i.status == InstallmentStatus.rejected).toList();
+    if (_filter == 5) list = list.where((i) => i.isOverdue).toList();
     return list;
+  }
+
+  Future<void> _approve(Installment installment) async {
+    final ok = await confirmDialog(
+      context,
+      title: 'Approve installment?',
+      message: 'This will activate the payment schedule for the customer.',
+    );
+    if (!ok || !mounted) return;
+    final repo = context.read<OrderRepository>();
+    try {
+      await repo.approveInstallment(installment.id);
+      if (!mounted) return;
+      showSuccessSnack(context, 'Installment approved');
+      _reload();
+    } catch (_) {
+      if (mounted) showErrorSnack(context, 'Could not approve installment');
+    }
+  }
+
+  Future<void> _reject(Installment installment) async {
+    final reason = await _promptReason(context);
+    if (reason == null || reason.isEmpty || !mounted) return;
+    final repo = context.read<OrderRepository>();
+    try {
+      await repo.rejectInstallment(installment.id, reason: reason);
+      if (!mounted) return;
+      showSuccessSnack(context, 'Installment rejected');
+      _reload();
+    } catch (_) {
+      if (mounted) showErrorSnack(context, 'Could not reject installment');
+    }
+  }
+
+  Future<String?> _promptReason(BuildContext context) async {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reject installment'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(hintText: 'Reason for rejection'),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            child: const Text('Reject'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-          child: SizedBox(
-            height: 40,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              children: [
-                for (var i = 0; i < _filters.length; i++)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: ChoiceChip(
-                      label: Text(_filters[i]),
-                      selected: _filter == i,
-                      onSelected: (_) => setState(() => _filter = i),
-                    ),
-                  ),
-              ],
+    return FutureBuilder<List<Installment>>(
+      future: _future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final plans = snapshot.data ?? const <Installment>[];
+        final filtered = _filtered(plans);
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              child: SizedBox(
+                height: 40,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: [
+                    for (var i = 0; i < _filters.length; i++)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ChoiceChip(
+                          label: Text(_filters[i]),
+                          selected: _filter == i,
+                          onSelected: (_) => setState(() => _filter = i),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: _filtered.length,
-            itemBuilder: (context, index) {
-              final inst = _filtered[index];
-              return _InstallmentCard(
-                installment: inst,
-                onApprove: () => _setStatus(inst.id, InstallmentStatus.active),
-                onReject: () => _setStatus(inst.id, InstallmentStatus.rejected),
-              );
-            },
-          ),
-        ),
-      ],
+            const SizedBox(height: 8),
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: _reload,
+                child: filtered.isEmpty
+                    ? ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        children: const [
+                          SizedBox(height: 100),
+                          EmptyState(
+                            icon: Icons.calendar_month,
+                            title: 'No installment plans found',
+                          ),
+                        ],
+                      )
+                    : ListView.builder(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.all(16),
+                        itemCount: filtered.length,
+                        itemBuilder: (context, index) {
+                          final inst = filtered[index];
+                          return _InstallmentCard(
+                            installment: inst,
+                            onApprove: () => _approve(inst),
+                            onReject: () => _reject(inst),
+                          );
+                        },
+                      ),
+              ),
+            ),
+          ],
+        );
+      },
     );
-  }
-
-  Future<void> _setStatus(String id, InstallmentStatus status) async {
-    final ok = await confirmDialog(
-      context,
-      title: status == InstallmentStatus.active ? 'Approve installment?' : 'Reject installment?',
-      message: status == InstallmentStatus.active
-          ? 'This will activate the payment schedule for the customer.'
-          : 'This will decline the customer\'s installment request.',
-      isDanger: status == InstallmentStatus.rejected,
-    );
-    if (!ok) return;
-    setState(() {
-      final idx = _installments.indexWhere((i) => i.id == id);
-      final old = _installments[idx];
-      _installments[idx] = Installment(
-        id: old.id,
-        orderId: old.orderId,
-        orderNumber: old.orderNumber,
-        customerId: old.customerId,
-        customerName: old.customerName,
-        totalAmount: old.totalAmount,
-        amountPaid: old.amountPaid,
-        schedule: old.schedule,
-        termMonths: old.termMonths,
-        status: status,
-        createdAt: old.createdAt,
-      );
-    });
-    showSuccessSnack(context, status == InstallmentStatus.active ? 'Installment approved' : 'Installment rejected');
   }
 }
 
@@ -186,11 +193,21 @@ class _InstallmentCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '\$${installment.totalAmount.toStringAsFixed(2)} total · \$${installment.amountPaid.toStringAsFixed(2)} paid',
+              '${formatKsh(installment.totalAmount)} total · ${formatKsh(installment.amountPaid)} paid',
             ),
             Text(
-              'Remaining: \$${installment.remainingBalance.toStringAsFixed(2)} · ${installment.termMonths} months',
+              'Remaining: ${formatKsh(installment.remainingBalance)} · ${installment.termMonths} months',
             ),
+            if (installment.status == InstallmentStatus.rejected &&
+                installment.rejectReason != null &&
+                installment.rejectReason!.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  'Rejected: ${installment.rejectReason}',
+                  style: const TextStyle(fontSize: 12, color: QueensTouchColors.danger),
+                ),
+              ),
           ],
         ),
         trailing: _statusChip(installment.status),
@@ -206,7 +223,7 @@ class _InstallmentCard extends StatelessWidget {
                 size: 18,
               ),
               title: Text(
-                '\$${p.amount.toStringAsFixed(2)}',
+                formatKsh(p.amount),
                 style: const TextStyle(fontSize: 13),
               ),
               subtitle: Text(
