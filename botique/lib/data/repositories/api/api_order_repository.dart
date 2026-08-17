@@ -104,6 +104,7 @@ class ApiOrderRepository implements OrderRepository {
   String _methodToApi(PaymentMethod method) => switch (method) {
         PaymentMethod.cashOnDelivery => 'cash_on_delivery',
         PaymentMethod.bankTransfer => 'bank_transfer',
+        PaymentMethod.paybill => 'paybill',
         PaymentMethod.card => 'card',
         PaymentMethod.installment => 'installment',
       };

@@ -11,23 +11,27 @@ extension OrderStatusLabel on OrderStatus {
       };
 }
 
-enum PaymentStatus { pending, successful, failed, refunded }
+enum PaymentStatus { pending, pendingVerification, successful, partiallyPaid, failed, refunded, rejected }
 
 extension PaymentStatusLabel on PaymentStatus {
   String get label => switch (this) {
         PaymentStatus.pending => 'Pending',
+        PaymentStatus.pendingVerification => 'Pending Verification',
         PaymentStatus.successful => 'Successful',
+        PaymentStatus.partiallyPaid => 'Partially Paid',
         PaymentStatus.failed => 'Failed',
         PaymentStatus.refunded => 'Refunded',
+        PaymentStatus.rejected => 'Rejected',
       };
 }
 
-enum PaymentMethod { cashOnDelivery, bankTransfer, card, installment }
+enum PaymentMethod { cashOnDelivery, bankTransfer, paybill, card, installment }
 
 extension PaymentMethodLabel on PaymentMethod {
   String get label => switch (this) {
         PaymentMethod.cashOnDelivery => 'Cash on Delivery',
         PaymentMethod.bankTransfer => 'Bank Transfer',
+        PaymentMethod.paybill => 'Paybill',
         PaymentMethod.card => 'Card',
         PaymentMethod.installment => 'Installment',
       };
@@ -85,6 +89,22 @@ class OrderItem {
   double get lineTotal => price * quantity;
 }
 
+class OrderPaymentSummary {
+  const OrderPaymentSummary({required this.total, required this.verified, required this.pending, required this.remaining});
+
+  factory OrderPaymentSummary.fromJson(Map<String, dynamic> json) => OrderPaymentSummary(
+        total: (json['total'] as num?)?.toDouble() ?? 0,
+        verified: (json['verified'] as num?)?.toDouble() ?? 0,
+        pending: (json['pending'] as num?)?.toDouble() ?? 0,
+        remaining: (json['remaining'] as num?)?.toDouble() ?? 0,
+      );
+
+  final double total;
+  final double verified;
+  final double pending;
+  final double remaining;
+}
+
 class Order {
   const Order({
     required this.id,
@@ -103,6 +123,7 @@ class Order {
     required this.paymentMethod,
     this.installmentRequested = false,
     required this.createdAt,
+    this.paymentSummary = const OrderPaymentSummary(total: 0, verified: 0, pending: 0, remaining: 0),
   });
 
   factory Order.fromJson(Map<String, dynamic> json) {
@@ -117,17 +138,25 @@ class Order {
     final paymentStatusRaw = (json['paymentStatus'] as String?) ?? 'pending';
     final paymentStatus = switch (paymentStatusRaw) {
       'successful' || 'paid' => PaymentStatus.successful,
+      'pending_verification' => PaymentStatus.pendingVerification,
+      'partially_paid' => PaymentStatus.partiallyPaid,
       'failed' => PaymentStatus.failed,
       'refunded' => PaymentStatus.refunded,
+      'rejected' => PaymentStatus.rejected,
       _ => PaymentStatus.pending,
     };
     final paymentMethodRaw = (json['paymentMethod'] as String?) ?? 'cash_on_delivery';
     final paymentMethod = switch (paymentMethodRaw) {
       'bank_transfer' => PaymentMethod.bankTransfer,
+      'paybill' => PaymentMethod.paybill,
       'card' => PaymentMethod.card,
       'installment' => PaymentMethod.installment,
       _ => PaymentMethod.cashOnDelivery,
     };
+    final subtotal = (json['subtotal'] as num?)?.toDouble() ?? 0;
+    final discount = (json['discount'] as num?)?.toDouble() ?? 0;
+    final shippingFee = (json['shippingFee'] as num?)?.toDouble() ?? 0;
+    final orderTotal = subtotal - discount + shippingFee;
     return Order(
       id: json['id'] as String,
       orderNumber: json['orderNumber'] as String? ?? '',
@@ -141,9 +170,12 @@ class Order {
               .map(OrderItem.fromJson)
               .toList() ??
           const [],
-      subtotal: (json['subtotal'] as num?)?.toDouble() ?? 0,
-      discount: (json['discount'] as num?)?.toDouble() ?? 0,
-      shippingFee: (json['shippingFee'] as num?)?.toDouble() ?? 0,
+      subtotal: subtotal,
+      discount: discount,
+      shippingFee: shippingFee,
+      paymentSummary: json['paymentSummary'] is Map<String, dynamic>
+          ? OrderPaymentSummary.fromJson(json['paymentSummary'] as Map<String, dynamic>)
+          : OrderPaymentSummary(total: orderTotal, verified: 0, pending: 0, remaining: orderTotal),
       status: status,
       paymentStatus: paymentStatus,
       paymentMethod: paymentMethod,
@@ -168,6 +200,7 @@ class Order {
   final PaymentMethod paymentMethod;
   final bool installmentRequested;
   final DateTime createdAt;
+  final OrderPaymentSummary paymentSummary;
 
   double get total => subtotal - discount + shippingFee;
 }
@@ -181,18 +214,33 @@ class Payment {
     required this.method,
     required this.status,
     this.reference,
+    this.orderNumber,
+    this.customerName,
+    this.paymentDate,
+    this.confirmationMessage,
+    this.note,
+    this.verifiedAt,
+    this.verifiedBy,
+    this.rejectedAt,
+    this.rejectedBy,
+    this.rejectReason,
+    this.duplicateOf,
     this.createdAt,
   });
 
   factory Payment.fromJson(Map<String, dynamic> json) {
     final method = switch (json['method'] as String?) {
       'bank_transfer' => PaymentMethod.bankTransfer,
+      'paybill' => PaymentMethod.paybill,
       'card' => PaymentMethod.card,
       'installment' => PaymentMethod.installment,
       _ => PaymentMethod.cashOnDelivery,
     };
     final status = switch (json['status'] as String?) {
       'successful' || 'paid' => PaymentStatus.successful,
+      'pending_verification' => PaymentStatus.pendingVerification,
+      'partially_paid' => PaymentStatus.partiallyPaid,
+      'rejected' => PaymentStatus.rejected,
       'failed' => PaymentStatus.failed,
       'refunded' => PaymentStatus.refunded,
       _ => PaymentStatus.pending,
@@ -205,6 +253,17 @@ class Payment {
       method: method,
       status: status,
       reference: json['reference'] as String?,
+      orderNumber: json['orderNumber'] as String?,
+      customerName: json['customerName'] as String?,
+      paymentDate: json['paymentDate'] as String?,
+      confirmationMessage: json['confirmationMessage'] as String?,
+      note: json['note'] as String?,
+      verifiedAt: json['verifiedAt'] as String?,
+      verifiedBy: json['verifiedBy'] as String?,
+      rejectedAt: json['rejectedAt'] as String?,
+      rejectedBy: json['rejectedBy'] as String?,
+      rejectReason: json['rejectReason'] as String?,
+      duplicateOf: json['duplicateOf'] as String?,
       createdAt: DateTime.tryParse(json['createdAt'] as String? ?? ''),
     );
   }
@@ -216,6 +275,17 @@ class Payment {
   final PaymentMethod method;
   final PaymentStatus status;
   final String? reference;
+  final String? orderNumber;
+  final String? customerName;
+  final String? paymentDate;
+  final String? confirmationMessage;
+  final String? note;
+  final String? verifiedAt;
+  final String? verifiedBy;
+  final String? rejectedAt;
+  final String? rejectedBy;
+  final String? rejectReason;
+  final String? duplicateOf;
   final DateTime? createdAt;
 }
 
@@ -258,6 +328,11 @@ class Installment {
     required this.status,
     this.termMonths = 3,
     required this.createdAt,
+    this.approvedBy,
+    this.approvedAt,
+    this.rejectedBy,
+    this.rejectedAt,
+    this.rejectReason,
   });
 
   factory Installment.fromJson(Map<String, dynamic> json) {
@@ -286,6 +361,11 @@ class Installment {
       status: status,
       termMonths: (json['termMonths'] as num?)?.toInt() ?? 3,
       createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
+      approvedBy: json['approvedBy'] as String?,
+      approvedAt: json['approvedAt'] as String?,
+      rejectedBy: json['rejectedBy'] as String?,
+      rejectedAt: json['rejectedAt'] as String?,
+      rejectReason: json['rejectReason'] as String?,
     );
   }
 
@@ -300,9 +380,28 @@ class Installment {
   final InstallmentStatus status;
   final int termMonths;
   final DateTime createdAt;
+  final String? approvedBy;
+  final String? approvedAt;
+  final String? rejectedBy;
+  final String? rejectedAt;
+  final String? rejectReason;
 
   double get remainingBalance => totalAmount - amountPaid;
 
   bool get isOverdue =>
       schedule.any((p) => !p.isPaid && p.dueDate.isBefore(DateTime.now()));
+}
+
+class TransferDetails {
+  const TransferDetails({required this.bankName, required this.paybillNumber, required this.accountNumber});
+
+  factory TransferDetails.fromJson(Map<String, dynamic> json) => TransferDetails(
+        bankName: json['bankName'] as String? ?? '',
+        paybillNumber: json['paybillNumber'] as String? ?? '',
+        accountNumber: json['accountNumber'] as String? ?? '',
+      );
+
+  final String bankName;
+  final String paybillNumber;
+  final String accountNumber;
 }
