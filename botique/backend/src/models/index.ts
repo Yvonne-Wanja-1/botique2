@@ -98,8 +98,8 @@ export interface ProductImage {
 }
 
 export type OrderStatus = 'pending' | 'paid' | 'processing' | 'ready' | 'delivered' | 'cancelled';
-export type PaymentStatus = 'pending' | 'successful' | 'failed' | 'refunded';
-export type PaymentMethod = 'cash_on_delivery' | 'bank_transfer' | 'card' | 'installment';
+export type PaymentStatus = 'pending' | 'pending_verification' | 'successful' | 'partially_paid' | 'failed' | 'refunded' | 'rejected';
+export type PaymentMethod = 'cash_on_delivery' | 'bank_transfer' | 'paybill' | 'card' | 'installment';
 export type InstallmentStatus = 'pending_approval' | 'approved' | 'active' | 'completed' | 'rejected' | 'overdue';
 
 export const ORDER_STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
@@ -111,10 +111,13 @@ export const ORDER_STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   cancelled: [],
 };
 export const PAYMENT_STATUS_TRANSITIONS: Record<PaymentStatus, PaymentStatus[]> = {
-  pending: ['successful', 'failed'],
+  pending: ['pending_verification', 'failed'],
+  pending_verification: ['successful', 'rejected'],
   successful: ['refunded'],
+  partially_paid: ['successful', 'pending_verification'],
   failed: ['pending'],
   refunded: [],
+  rejected: [],
 };
 export const INSTALLMENT_STATUS_TRANSITIONS: Record<InstallmentStatus, InstallmentStatus[]> = {
   pending_approval: ['approved', 'rejected'],
