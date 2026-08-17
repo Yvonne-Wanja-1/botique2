@@ -9,7 +9,17 @@ export interface Payment {
   method: PaymentMethod;
   status: PaymentStatus;
   reference: string | null;
+  paymentDate: string | null;
+  confirmationMessage: string | null;
+  note: string | null;
+  verifiedAt: string | null;
+  verifiedBy: string | null;
+  rejectedAt: string | null;
+  rejectedBy: string | null;
+  rejectReason: string | null;
+  duplicateOf: string | null;
   createdAt: string;
+  updatedAt: string | null;
 }
 
 export class PaymentRepository {
@@ -17,8 +27,7 @@ export class PaymentRepository {
 
   async getByOrder(orderId: string): Promise<Payment | null> {
     const res = await this.pool.query(
-      `SELECT id, order_id, customer_id, amount, method, status, reference, created_at
-       FROM payments WHERE order_id = $1`,
+      `SELECT * FROM payments WHERE order_id = $1`,
       [orderId],
     );
     if (!res.rows.length) return null;
@@ -31,7 +40,17 @@ export class PaymentRepository {
       method: r.method as PaymentMethod,
       status: r.status as PaymentStatus,
       reference: r.reference ? String(r.reference) : null,
+      paymentDate: r.payment_date ? String(r.payment_date) : null,
+      confirmationMessage: r.confirmation_message ? String(r.confirmation_message) : null,
+      note: r.note ? String(r.note) : null,
+      verifiedAt: r.verified_at ? String(r.verified_at) : null,
+      verifiedBy: r.verified_by ? String(r.verified_by) : null,
+      rejectedAt: r.rejected_at ? String(r.rejected_at) : null,
+      rejectedBy: r.rejected_by ? String(r.rejected_by) : null,
+      rejectReason: r.reject_reason ? String(r.reject_reason) : null,
+      duplicateOf: r.duplicate_of ? String(r.duplicate_of) : null,
       createdAt: String(r.created_at),
+      updatedAt: r.updated_at ? String(r.updated_at) : null,
     };
   }
 

@@ -84,8 +84,8 @@ export class InstallmentRepository {
       if (String(order.customer_id) !== customerId) {
         throw new ConflictError('Order does not belong to this customer');
       }
-      if (String(order.status) !== 'paid') {
-        throw new ConflictError('Only paid orders can have installment plans');
+      if (String(order.status) === 'cancelled') {
+        throw new ConflictError('Cancelled orders cannot have installment plans');
       }
 
       const existing = await client.query('SELECT id FROM installments WHERE order_id = $1', [orderId]);

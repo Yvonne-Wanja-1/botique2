@@ -82,16 +82,17 @@ export function createApp(pool: Pool, options: { uploadsDir?: string } = {}): ex
   app.use('/api/cart', cartRouter(cartService));
 
   const orderRepo = new OrderRepository(pool);
-  const orderService = new OrderService(orderRepo);
+
+  const installmentRepo = new InstallmentRepository(pool);
+  const installmentService = new InstallmentService(installmentRepo);
+  app.use('/api/installments', installmentRouter(installmentService));
+
+  const orderService = new OrderService(orderRepo, installmentRepo);
   app.use('/api/orders', orderRouter(orderService));
 
   const paymentRepo = new PaymentRepository(pool);
   const paymentService = new PaymentService(paymentRepo);
   app.use('/api/payments', paymentRouter(paymentService));
-
-  const installmentRepo = new InstallmentRepository(pool);
-  const installmentService = new InstallmentService(installmentRepo);
-  app.use('/api/installments', installmentRouter(installmentService));
 
   const reviewRepo = new ReviewRepository(pool);
   const reviewService = new ReviewService(reviewRepo);
