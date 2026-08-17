@@ -45,6 +45,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   List<ProductImage> _existingImages = [];
   final List<_PickedImage> _picked = [];
   bool _saving = false;
+  bool _picking = false;
 
   bool get _isEditing => widget.product != null;
 
@@ -105,17 +106,23 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   }
 
   Future<void> _pickImages() async {
-    final files = await _picker.pickMultiImage();
-    if (files.isEmpty) return;
-    final images = <_PickedImage>[];
-    for (final file in files) {
-      images.add(_PickedImage(
-        bytes: await file.readAsBytes(),
-        filename: file.name,
-        mimeType: file.mimeType ?? 'image/jpeg',
-      ));
+    if (_picking) return;
+    _picking = true;
+    try {
+      final files = await _picker.pickMultiImage();
+      if (files.isEmpty) return;
+      final images = <_PickedImage>[];
+      for (final file in files) {
+        images.add(_PickedImage(
+          bytes: await file.readAsBytes(),
+          filename: file.name,
+          mimeType: file.mimeType ?? 'image/jpeg',
+        ));
+      }
+      if (mounted) setState(() => _picked.addAll(images));
+    } finally {
+      _picking = false;
     }
-    if (mounted) setState(() => _picked.addAll(images));
   }
 
   Future<void> _save() async {
