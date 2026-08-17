@@ -31,6 +31,9 @@ export class ProductService {
   search(params: ProductSearchParams) {
     return this.productRepo.search(params);
   }
+  async getAll(params: ProductSearchParams) {
+    return this.productRepo.search({ ...params, includeInactive: true });
+  }
   async getById(id: string): Promise<Product> {
     const product = await this.productRepo.findById(id);
     if (!product) throw new NotFoundError('Product not found');
@@ -47,6 +50,21 @@ export class ProductService {
   async deactivate(id: string): Promise<void> {
     const ok = await this.productRepo.setStatus(id, 'inactive');
     if (!ok) throw new NotFoundError('Product not found');
+  }
+  getImages(productId: string) {
+    return this.productRepo.getImages(productId);
+  }
+  addImages(productId: string, urls: string[]) {
+    return this.productRepo.addImages(productId, urls);
+  }
+  async removeImage(productId: string, imageId: string): Promise<void> {
+    const ok = await this.productRepo.removeImage(productId, imageId);
+    if (!ok) throw new NotFoundError('Product image not found');
+  }
+  async setPrimaryImage(productId: string, imageId: string) {
+    const image = await this.productRepo.setPrimaryImage(productId, imageId);
+    if (!image) throw new NotFoundError('Product image not found');
+    return image;
   }
   getReviews(productId: string) {
     return this.productRepo.getReviews(productId);

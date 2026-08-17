@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Pool } from 'pg';
-import type { Product, ProductRow, ProductVariant, ReviewRow } from '../models/index.js';
+import type { Product, ProductImage, ProductRow, ProductVariant, ReviewRow } from '../models/index.js';
 import { toNumber } from '../models/index.js';
 import { NotFoundError } from '../utils/errors.js';
 
@@ -19,6 +19,7 @@ export interface ProductSearchParams {
   newArrival?: boolean;
   bestSeller?: boolean;
   trending?: boolean;
+  includeInactive?: boolean;
   sort?: 'newest' | 'price_low_high' | 'price_high_low' | 'best_selling' | 'best_rated' | 'discount';
   page?: number;
   pageSize?: number;
@@ -87,11 +88,21 @@ function mapProductRow(row: ProductRow): Product {
   };
 }
 
+function mapProductImage(row: Record<string, unknown>): ProductImage {
+  return {
+    id: String(row.id),
+    productId: String(row.product_id),
+    url: String(row.url),
+    position: Number(row.position),
+    isPrimary: Boolean(row.is_primary),
+  };
+}
+
 export class ProductRepository {
   constructor(private pool: Pool) {}
 
   async search(params: ProductSearchParams): Promise<{ rows: Product[]; total: number }> {
-    const conditions: string[] = ["p.status = 'active'"];
+    const conditions: string[] = params.includeInactive ? [] : ["p.status = 'active'"];
     const values: unknown[] = [];
 
     if (params.featured) conditions.push('p.is_featured = TRUE');
@@ -312,5 +323,124 @@ export class ProductRepository {
       isReported: r.is_reported,
       createdAt: r.created_at,
     }));
+  }
+
+  async getImages(productId: string): Promise<ProductImage[]> {
+    const res = await this.pool.query(
+      `SELECT id, product_id, url, position, is_primary
+       FROM product_images WHERE product_id = $1 ORDER BY position, id`,
+      [productId],
+    );
+    return res.rows.map(mapProductImage);
+  }
+
+  async addImages(productId: string, urls: string[]): Promise<ProductImage[]> {
+    if (!urls.length) return [];
+    const exists = await this.pool.query('SELECT id FROM products WHERE id = $1', [productId]);
+    if (!exists.rows.length) throw new NotFoundError('Product not found');
+    const maxRes = await this.pool.query(
+      'SELECT COALESCE(MAX(position), -1)::int AS m FROM product_images WHERE product_id = $1',
+      [productId],
+    );
+    const start = Number(maxRes.rows[0]?.m ?? -1) + 1;
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const created: ProductImage[] = [];
+      for (let i = 0; i < urls.length; i++) {
+        const id = randomUUID();
+        const position = start + i;
+        await client.query(
+          `INSERT INTO product_images (id, product_id, url, position, is_primary)
+           VALUES ($1,$2,$3,$4,$5)`,
+          [id, productId, urls[i], position, position === 0],
+        );
+        created.push({ id, productId, url: urls[i], position, isPrimary: position === 0 });
+      }
+      await client.query('COMMIT');
+      return created;
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+
+  async removeImage(productId: string, imageId: string): Promise<boolean> {
+    const res = await this.pool.query(
+      'DELETE FROM product_images WHERE id = $1 AND product_id = $2',
+      [imageId, productId],
+    );
+    if (!res.rowCount) return false;
+    const remaining = await this.pool.query(
+      'SELECT id FROM product_images WHERE product_id = $1 ORDER BY position, id',
+      [productId],
+    );
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        'UPDATE product_images SET position = position + 1000000 WHERE product_id = $1',
+        [productId],
+      );
+      for (let i = 0; i < remaining.rows.length; i++) {
+        await client.query(
+          'UPDATE product_images SET position = $1, is_primary = ($1 = 0) WHERE id = $2',
+          [i, remaining.rows[i].id],
+        );
+      }
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+    return true;
+  }
+
+  async setPrimaryImage(productId: string, imageId: string): Promise<ProductImage | null> {
+    const targetRes = await this.pool.query(
+      'SELECT * FROM product_images WHERE id = $1 AND product_id = $2',
+      [imageId, productId],
+    );
+    if (!targetRes.rows.length) return null;
+    const target = targetRes.rows[0];
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const current = await client.query(
+        'SELECT * FROM product_images WHERE product_id = $1 AND position = 0',
+        [productId],
+      );
+      if (current.rows.length && current.rows[0].id !== imageId) {
+        const maxRes = await client.query(
+          'SELECT COALESCE(MAX(position), 0)::int AS m FROM product_images WHERE product_id = $1',
+          [productId],
+        );
+        const temp = Number(maxRes.rows[0]?.m ?? 0) + 1;
+        await client.query('UPDATE product_images SET position = $1 WHERE id = $2', [temp, imageId]);
+        await client.query(
+          'UPDATE product_images SET position = $1 WHERE id = $2',
+          [Number(target.position), current.rows[0].id],
+        );
+        await client.query('UPDATE product_images SET position = 0, is_primary = TRUE WHERE id = $1', [imageId]);
+      } else {
+        await client.query('UPDATE product_images SET position = 0, is_primary = TRUE WHERE id = $1', [imageId]);
+      }
+      await client.query(
+        'UPDATE product_images SET is_primary = (position = 0) WHERE product_id = $1',
+        [productId],
+      );
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+    const images = await this.getImages(productId);
+    return images.find((i) => i.id === imageId) ?? null;
   }
 }

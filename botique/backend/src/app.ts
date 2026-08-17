@@ -1,5 +1,7 @@
 import cors from 'cors';
 import express from 'express';
+import { mkdirSync } from 'node:fs';
+import { resolve } from 'node:path';
 import type { Pool } from 'pg';
 import { authStub } from './middleware/authStub.js';
 import { errorHandler } from './middleware/errorHandler.js';
@@ -44,11 +46,15 @@ import { AuditRepository } from './repositories/auditRepository.js';
 import { AuditService } from './services/auditService.js';
 import { auditRouter } from './routes/auditRouter.js';
 
-export function createApp(pool: Pool): express.Express {
+export function createApp(pool: Pool, options: { uploadsDir?: string } = {}): express.Express {
   const app = express();
   app.use(cors());
   app.use(express.json());
   app.use(requestLogger);
+
+  const uploadsDir = resolve(process.cwd(), options.uploadsDir ?? 'uploads');
+  mkdirSync(uploadsDir, { recursive: true });
+  app.use('/images', express.static(uploadsDir));
 
   app.use('/health', healthRouter(pool));
 
@@ -56,7 +62,7 @@ export function createApp(pool: Pool): express.Express {
 
   const productRepo = new ProductRepository(pool);
   const productService = new ProductService(productRepo);
-  app.use('/api/products', productRouter(productService));
+  app.use('/api/products', productRouter(productService, { uploadsDir }));
 
   const categoryRepo = new CategoryRepository(pool);
   const brandRepo = new BrandRepository(pool);

@@ -1,9 +1,12 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 import 'package:botique/data/api/api_client.dart';
 import 'package:botique/data/api/api_exception.dart';
+import 'package:botique/models/product.dart';
 
 void main() {
   test('returns data from a successful envelope', () async {
@@ -52,5 +55,40 @@ void main() {
     final client = ApiClient(baseUrl: 'http://localhost:8080', client: mock);
     client.setPrincipal(userId: 'u2', role: 'staff');
     await client.get('/api/things');
+  });
+
+  test('postMultipart uploads fields and images', () async {
+    final mock = MockClient((request) async {
+      expect(request.method, 'POST');
+      expect(request.url.path, '/api/products/p1/images');
+      expect(request.headers['x-user-id'], 'u203');
+      expect(request.headers['content-type'], startsWith('multipart/form-data'));
+      final body = utf8.decode(request.bodyBytes);
+      expect(body, contains('name="field1"'));
+      expect(body, contains('filename="dress.png"'));
+      return http.Response(
+        '{"success": true, "data": [{"id": "img1", "url": "/images/dress.png", "position": 0, "isPrimary": true}]}',
+        201,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+    final client = ApiClient(baseUrl: 'http://localhost:8080', userId: 'u203', client: mock);
+    final data = await client.postMultipart(
+      '/api/products/p1/images',
+      fields: {'field1': 'v1'},
+      images: const [
+        UploadImage(bytes: [1, 2, 3], filename: 'dress.png', mimeType: 'image/png'),
+      ],
+    );
+    expect(data, isA<List<dynamic>>());
+    expect((data as List<dynamic>).single['url'], '/images/dress.png');
+  });
+
+  test('resolveImageUrl resolves relative and leaves absolute untouched', () {
+    final client = ApiClient(baseUrl: 'http://localhost:8080');
+    expect(client.resolveImageUrl('/images/a.png'), 'http://localhost:8080/images/a.png');
+    expect(client.resolveImageUrl('images/a.png'), 'http://localhost:8080/images/a.png');
+    expect(client.resolveImageUrl('https://cdn.x/a.png'), 'https://cdn.x/a.png');
+    expect(client.resolveImageUrl(''), '');
   });
 }

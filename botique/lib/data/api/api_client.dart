@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 
+import '../../models/product.dart';
 import 'api_exception.dart';
 
 class ApiClient {
@@ -26,12 +28,13 @@ class ApiClient {
     _role = null;
   }
 
-  Map<String, String> get _headers => {
+  Map<String, String> get _authHeaders => {
         'accept': 'application/json',
-        'content-type': 'application/json',
         'x-user-id': ?_userId,
         'x-user-role': ?_role,
       };
+
+  Map<String, String> get _headers => {..._authHeaders, 'content-type': 'application/json'};
 
   Uri _uri(String path, [Map<String, dynamic>? query]) {
     var uri = Uri.parse('$baseUrl$path');
@@ -55,6 +58,33 @@ class ApiClient {
 
   Future<dynamic> delete(String path, {Map<String, dynamic>? query}) =>
       _send(() => _client.delete(_uri(path, query), headers: _headers));
+
+  /// Uploads image files as multipart/form-data. Returns the `data` payload.
+  Future<dynamic> postMultipart(
+    String path, {
+    Map<String, String> fields = const {},
+    List<UploadImage> images = const [],
+  }) async {
+    final request = http.MultipartRequest('POST', _uri(path))
+      ..headers.addAll(_authHeaders)
+      ..fields.addAll(fields);
+    for (final image in images) {
+      request.files.add(http.MultipartFile.fromBytes(
+        'images',
+        image.bytes,
+        filename: image.filename,
+        contentType: MediaType.parse(image.mimeType),
+      ));
+    }
+    return _send(() async => http.Response.fromStream(await _client.send(request)));
+  }
+
+  /// Resolves backend-relative asset URLs (e.g. `/images/abc.png`) against the
+  /// API base URL while leaving absolute URLs untouched.
+  String resolveImageUrl(String url) {
+    if (url.isEmpty || url.startsWith('http://') || url.startsWith('https://')) return url;
+    return url.startsWith('/') ? '$baseUrl$url' : '$baseUrl/$url';
+  }
 
   Future<dynamic> _send(Future<http.Response> Function() request) async {
     final http.Response response;

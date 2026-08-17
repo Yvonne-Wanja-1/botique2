@@ -89,6 +89,14 @@ export type ProductRow = Omit<Product, 'variants' | 'images' | 'specifications' 
   updated_at: string;
 };
 
+export interface ProductImage {
+  id: string;
+  productId: string;
+  url: string;
+  position: number;
+  isPrimary: boolean;
+}
+
 export type OrderStatus = 'pending' | 'paid' | 'processing' | 'ready' | 'delivered' | 'cancelled';
 export type PaymentStatus = 'pending' | 'successful' | 'failed' | 'refunded';
 export type PaymentMethod = 'cash_on_delivery' | 'bank_transfer' | 'card' | 'installment';

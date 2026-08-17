@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../core/theme/theme.dart';
+import '../../core/utils/image_url.dart';
 import '../../core/widgets/dialogs.dart';
-import '../../data/mock/mock_catalog_data.dart';
+import '../../core/widgets/empty_state.dart';
 import '../../models/product.dart';
+import '../../services/admin_catalog_service.dart';
+import 'product_form_screen.dart';
 
 class ProductsScreen extends StatefulWidget {
   const ProductsScreen({super.key});
@@ -16,15 +20,54 @@ class _ProductsScreenState extends State<ProductsScreen> {
   String _query = '';
   final TextEditingController _search = TextEditingController();
 
-  List<Product> get _filtered {
-    final q = _query.toLowerCase();
-    final list = MockCatalogData.products;
-    if (q.isEmpty) return list;
-    return list.where((p) => p.name.toLowerCase().contains(q)).toList();
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<AdminCatalogService>().load();
+    });
+  }
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  Future<void> _openForm({Product? product}) async {
+    final created = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => ProductFormScreen(product: product)),
+    );
+    if (created == true && mounted) {
+      showSuccessSnack(context, product == null ? 'Product created' : 'Product updated');
+    }
+  }
+
+  Future<void> _toggle(Product product) async {
+    final service = context.read<AdminCatalogService>();
+    final ok = await confirmDialog(
+      context,
+      title: 'Deactivate product?',
+      message: '${product.name} will no longer be visible in the storefront.',
+      isDanger: true,
+    );
+    if (ok) {
+      try {
+        await service.deactivate(product.id);
+        if (mounted) showSuccessSnack(context, 'Product deactivated');
+      } catch (e) {
+        if (mounted) showErrorSnack(context, 'Failed to deactivate: $e');
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final service = context.watch<AdminCatalogService>();
+    final list = service.products;
+    final q = _query.toLowerCase();
+    final filtered = q.isEmpty ? list : list.where((p) => p.name.toLowerCase().contains(q)).toList();
+
     return Column(
       children: [
         Padding(
@@ -52,34 +95,39 @@ class _ProductsScreenState extends State<ProductsScreen> {
               ),
               const SizedBox(width: 12),
               ElevatedButton.icon(
-                onPressed: () => showSuccessSnack(context, 'Product creation form coming with backend'),
+                onPressed: () => _openForm(),
                 icon: const Icon(Icons.add),
                 label: const Text('Add Product'),
               ),
             ],
           ),
         ),
-        Expanded(
-          child: ListView.builder(
+        if (service.error != null)
+          Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: _filtered.length,
-            itemBuilder: (context, index) {
-              final p = _filtered[index];
-              return _ProductRow(
-                product: p,
-                onEdit: () => showSuccessSnack(context, 'Edit coming with backend'),
-                onToggle: () async {
-                  final ok = await confirmDialog(
-                    context,
-                    title: 'Deactivate product?',
-                    message: '${p.name} will no longer be visible in the storefront.',
-                    isDanger: true,
-                  );
-                  if (ok) showSuccessSnack(context, 'Product deactivated');
-                },
-              );
-            },
+            child: Text(service.error!, style: const TextStyle(color: QueensTouchColors.danger)),
           ),
+        Expanded(
+          child: service.loading && service.products.isEmpty
+              ? const Center(child: CircularProgressIndicator())
+              : filtered.isEmpty
+                  ? const EmptyState(
+                      icon: Icons.inventory_2_outlined,
+                      title: 'No products',
+                      message: 'Add a product to get started.',
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: filtered.length,
+                      itemBuilder: (context, index) {
+                        final p = filtered[index];
+                        return _ProductRow(
+                          product: p,
+                          onEdit: () => _openForm(product: p),
+                          onToggle: () => _toggle(p),
+                        );
+                      },
+                    ),
         ),
       ],
     );
@@ -109,7 +157,15 @@ class _ProductRow extends StatelessWidget {
             color: QueensTouchColors.blushLight,
             borderRadius: BorderRadius.circular(10),
           ),
-          child: const Icon(Icons.checkroom, color: QueensTouchColors.plumLight),
+          clipBehavior: Clip.antiAlias,
+          child: product.images.isEmpty
+              ? const Icon(Icons.checkroom, color: QueensTouchColors.plumLight)
+              : Image.network(
+                  resolveImageUrl(product.images.first),
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) =>
+                      const Icon(Icons.checkroom, color: QueensTouchColors.plumLight),
+                ),
         ),
         title: Text(product.name, style: const TextStyle(fontWeight: FontWeight.w600)),
         subtitle: Column(
@@ -151,11 +207,13 @@ class _StatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (label, color) = product.isOutOfStock
-        ? ('Out of stock', QueensTouchColors.danger)
-        : product.isLowStock
-            ? ('Low stock', QueensTouchColors.warning)
-            : ('Active', QueensTouchColors.success);
+    final (label, color) = product.status == ProductStatus.inactive
+        ? ('Inactive', QueensTouchColors.textMuted)
+        : product.isOutOfStock
+            ? ('Out of stock', QueensTouchColors.danger)
+            : product.isLowStock
+                ? ('Low stock', QueensTouchColors.warning)
+                : ('Active', QueensTouchColors.success);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
