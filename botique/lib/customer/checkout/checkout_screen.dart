@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/theme/theme.dart';
+import '../../core/utils/currency.dart';
 import '../../core/widgets/dialogs.dart';
 import '../../data/mock/mock_commerce_repositories.dart';
 import '../../data/repositories/commerce_repository.dart';
@@ -9,6 +10,7 @@ import '../../models/order.dart';
 import '../../models/promotion.dart';
 import '../../services/auth_service.dart';
 import '../../services/cart_service.dart';
+import '../orders/submit_payment_screen.dart';
 
 class CheckoutScreen extends StatefulWidget {
   const CheckoutScreen({super.key});
@@ -355,6 +357,31 @@ class _ConfirmationScreen extends StatelessWidget {
                       const Divider(height: 24),
                       const Text('Installment requested', style: TextStyle(color: QueensTouchColors.warning)),
                       const Text('Awaiting approval', style: TextStyle(color: QueensTouchColors.warning, fontSize: 13)),
+                    ],
+                    if (order.paymentMethod == PaymentMethod.paybill ||
+                        order.paymentMethod == PaymentMethod.bankTransfer) ...[
+                      const Divider(height: 24),
+                      const Text('How to pay', style: TextStyle(fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 8),
+                      const _Row('Paybill', '222111'),
+                      const _Row('Account', '65727'),
+                      _Row('Total', formatKsh(order.total), isTotal: true),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => SubmitPaymentScreen(
+                                orderId: order.id,
+                                orderNumber: order.orderNumber,
+                                amount: order.total,
+                              ),
+                            ),
+                          ),
+                          child: const Text('Pay'),
+                        ),
+                      ),
                     ],
                   ],
                 ),
