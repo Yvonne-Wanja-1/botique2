@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
-import 'package:botique/core/router/app_router.dart';
 import 'package:botique/customer/orders/order_detail_screen.dart';
 import 'package:botique/data/mock/mock_commerce_repositories.dart';
 import 'package:botique/data/repositories/commerce_repository.dart';
