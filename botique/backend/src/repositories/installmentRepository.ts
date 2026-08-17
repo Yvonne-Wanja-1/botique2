@@ -70,6 +70,28 @@ export class InstallmentRepository {
     };
   }
 
+  async getById(id: string): Promise<Installment | null> {
+    const res = await this.pool.query('SELECT * FROM installments WHERE id = $1', [id]);
+    if (!res.rows.length) return null;
+    const r = res.rows[0];
+    const payments = await this.pool.query(
+      'SELECT * FROM installment_payments WHERE installment_id = $1 ORDER BY due_date ASC',
+      [r.id],
+    );
+    return {
+      id: String(r.id),
+      orderId: String(r.order_id),
+      customerId: String(r.customer_id),
+      totalAmount: Number(r.total_amount),
+      amountPaid: Number(r.amount_paid),
+      termMonths: toNumber(r.term_months),
+      status: String(r.status),
+      approvedBy: r.approved_by ? String(r.approved_by) : null,
+      approvedAt: r.approved_at ? String(r.approved_at) : null,
+      payments: payments.rows.map(mapPayment),
+    };
+  }
+
   async createPlan(orderId: string, customerId: string, planCount: number): Promise<Installment> {
     const client = await this.pool.connect();
     try {
@@ -171,6 +193,68 @@ export class InstallmentRepository {
       await client.query('COMMIT');
       const res = await client.query('SELECT * FROM installment_payments WHERE id = $1', [paymentId]);
       return mapPayment(res.rows[0]);
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+
+  async applyPayment(installmentId: string, amount: number): Promise<Installment> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const planRes = await client.query(
+        'SELECT id, amount_paid, total_amount, status FROM installments WHERE id = $1 FOR UPDATE',
+        [installmentId],
+      );
+      if (!planRes.rows.length) throw new NotFoundError('Installment plan not found');
+      const plan = planRes.rows[0];
+      if (String(plan.status) !== 'active') {
+        throw new ConflictError('Only active installment plans accept payments');
+      }
+
+      const unpaid = await client.query(
+        `SELECT id, amount FROM installment_payments
+         WHERE installment_id = $1 AND is_paid = FALSE
+         ORDER BY due_date ASC FOR UPDATE`,
+        [installmentId],
+      );
+
+      let remaining = amount;
+      for (const p of unpaid.rows) {
+        if (remaining <= 0) break;
+        remaining -= Number(p.amount);
+        await client.query(
+          'UPDATE installment_payments SET is_paid = TRUE, paid_at = now() WHERE id = $1',
+          [p.id],
+        );
+      }
+
+      const newPaid = Math.min(Number(plan.amount_paid) + amount, Number(plan.total_amount));
+      await client.query('UPDATE installments SET amount_paid = $2, updated_at = now() WHERE id = $1', [
+        installmentId,
+        newPaid,
+      ]);
+
+      const unpaidCount = await client.query(
+        `SELECT count(*)::int AS n FROM installment_payments
+         WHERE installment_id = $1 AND is_paid = FALSE`,
+        [installmentId],
+      );
+      if (toNumber(unpaidCount.rows[0]?.n ?? 0) === 0) {
+        await client.query(
+          "UPDATE installments SET status = 'completed', amount_paid = total_amount, updated_at = now() WHERE id = $1",
+          [installmentId],
+        );
+      }
+
+      await client.query('COMMIT');
+      const planRef = await this.getById(installmentId);
+      if (!planRef) throw new NotFoundError('Installment plan not found');
+      return planRef;
     } catch (e) {
       await client.query('ROLLBACK');
       throw e;

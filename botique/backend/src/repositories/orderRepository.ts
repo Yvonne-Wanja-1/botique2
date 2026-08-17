@@ -93,12 +93,14 @@ export class OrderRepository {
       lineTotal: Number(r.line_total),
     }));
     const pays = await this.pool.query(
-      'SELECT * FROM payments WHERE order_id = $1 ORDER BY created_at DESC',
+      'SELECT p.*, o.order_number, o.customer_name FROM payments p JOIN orders o ON o.id = p.order_id WHERE p.order_id = $1 ORDER BY p.created_at DESC',
       [id],
     );
     const payments: Payment[] = pays.rows.map((r) => ({
       id: String(r.id),
       orderId: String(r.order_id),
+      orderNumber: r.order_number ? String(r.order_number) : null,
+      customerName: r.customer_name ? String(r.customer_name) : null,
       customerId: String(r.customer_id),
       amount: Number(r.amount),
       method: r.method as PaymentMethod,
