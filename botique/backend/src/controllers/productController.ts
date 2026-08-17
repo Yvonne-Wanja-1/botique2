@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import type { ProductService } from '../services/productService.js';
 import { ok } from '../utils/apiResponse.js';
+import { ValidationError } from '../utils/errors.js';
 
 export function productController(productService: ProductService) {
   return {
@@ -28,6 +29,17 @@ export function productController(productService: ProductService) {
       ok(res, { products: result.rows, total: result.total });
     },
 
+    async listAll(req: Request, res: Response): Promise<void> {
+      const q = req.query;
+      const result = await productService.getAll({
+        search: q.q ? String(q.q) : undefined,
+        sort: q.sort as never,
+        page: q.page ? Number(q.page) : undefined,
+        pageSize: q.pageSize ? Number(q.pageSize) : undefined,
+      });
+      ok(res, { products: result.rows, total: result.total });
+    },
+
     async get(req: Request, res: Response): Promise<void> {
       ok(res, await productService.getById(req.params.id));
     },
@@ -43,6 +55,27 @@ export function productController(productService: ProductService) {
     async deactivate(req: Request, res: Response): Promise<void> {
       await productService.deactivate(req.params.id);
       ok(res, { id: req.params.id, status: 'inactive' });
+    },
+
+    async listImages(req: Request, res: Response): Promise<void> {
+      ok(res, await productService.getImages(req.params.id));
+    },
+
+    async uploadImages(req: Request, res: Response): Promise<void> {
+      const files = (req.files as Express.Multer.File[] | undefined) ?? [];
+      if (!files.length) throw new ValidationError('No image files provided');
+      const urls = files.map((f) => `/images/${f.filename}`);
+      ok(res, await productService.addImages(req.params.id, urls), 201);
+    },
+
+    async removeImage(req: Request, res: Response): Promise<void> {
+      await productService.removeImage(req.params.id, req.params.imageId);
+      ok(res, { id: req.params.imageId, removed: true });
+    },
+
+    async setPrimaryImage(req: Request, res: Response): Promise<void> {
+      const image = await productService.setPrimaryImage(req.params.id, req.params.imageId);
+      ok(res, image);
     },
 
     async reviews(req: Request, res: Response): Promise<void> {

@@ -60,6 +60,62 @@ class ApiProductRepository implements ProductRepository {
         .toList();
   }
 
+  @override
+  Future<List<Product>> getAll({String? search}) async {
+    final data = await _client.get('/api/products/all', query: {
+      if (search != null && search.isNotEmpty) 'q': search,
+    });
+    return _productsFromData(data);
+  }
+
+  @override
+  Future<Product> create(ProductDraft draft) async {
+    final data = await _client.post('/api/products', body: draft.toJson());
+    return Product.fromJson(data as Map<String, dynamic>);
+  }
+
+  @override
+  Future<Product> update(String id, ProductDraft draft) async {
+    final body = draft.toJson()..remove('slug');
+    final data = await _client.patch('/api/products/$id', body: body);
+    return Product.fromJson(data as Map<String, dynamic>);
+  }
+
+  @override
+  Future<void> deactivate(String id) async {
+    await _client.delete('/api/products/$id');
+  }
+
+  @override
+  Future<List<ProductImage>> getImages(String productId) async {
+    final data = await _client.get('/api/products/$productId/images');
+    return (data as List<dynamic>)
+        .map((e) => ProductImage.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  @override
+  Future<List<ProductImage>> uploadImages(String productId, List<UploadImage> images) async {
+    final data = await _client.postMultipart('/api/products/$productId/images', images: images);
+    return (data as List<dynamic>)
+        .map((e) => ProductImage.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  @override
+  Future<void> deleteImage(String productId, String imageId) async {
+    await _client.delete('/api/products/$productId/images/$imageId');
+  }
+
+  @override
+  Future<ProductImage> setPrimaryImage(String productId, String imageId) async {
+    final data = await _client.patch(
+      '/api/products/$productId/images/$imageId',
+      body: {'isPrimary': true},
+    );
+    return ProductImage.fromJson(data as Map<String, dynamic>);
+  }
+
   List<Product> _productsFromData(Object? data) {
     if (data is! Map<String, dynamic>) return [];
     return (data['products'] as List<dynamic>? ?? [])

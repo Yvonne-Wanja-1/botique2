@@ -109,6 +109,15 @@ abstract class ProductRepository {
   });
   Future<Product?> getById(String id);
   Future<List<Review>> getReviews(String productId);
+
+  Future<List<Product>> getAll({String? search});
+  Future<Product> create(ProductDraft draft);
+  Future<Product> update(String id, ProductDraft draft);
+  Future<void> deactivate(String id);
+  Future<List<ProductImage>> getImages(String productId);
+  Future<List<ProductImage>> uploadImages(String productId, List<UploadImage> images);
+  Future<void> deleteImage(String productId, String imageId);
+  Future<ProductImage> setPrimaryImage(String productId, String imageId);
 }
 
 abstract class CategoryRepository {

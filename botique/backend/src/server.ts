@@ -5,7 +5,7 @@ import { checkDatabase, createPool } from './db/pool.js';
 export function main(): void {
   const config = loadConfig();
   const pool = createPool(config);
-  const app = createApp(pool);
+  const app = createApp(pool, { uploadsDir: config.uploadsDir });
 
   app.listen(config.port, async () => {
     console.log(`Queens' Touch API listening on http://localhost:${config.port}`);

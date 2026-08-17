@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/theme/theme.dart';
+import '../../core/utils/image_url.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/loading_view.dart';
 import '../../models/product.dart';
@@ -260,22 +261,95 @@ class _ProductDetailBody extends StatelessWidget {
   }
 }
 
-class _Gallery extends StatelessWidget {
+class _Gallery extends StatefulWidget {
   const _Gallery({required this.product});
 
   final Product product;
 
   @override
+  State<_Gallery> createState() => _GalleryState();
+}
+
+class _GalleryState extends State<_Gallery> {
+  int _index = 0;
+
+  @override
   Widget build(BuildContext context) {
+    final images = widget.product.images;
+    if (images.isEmpty) {
+      return _imageContainer(const Center(
+        child: Icon(Icons.checkroom, size: 80, color: QueensTouchColors.plumLight),
+      ));
+    }
+    return Column(
+      children: [
+        _imageContainer(
+          Stack(
+            fit: StackFit.expand,
+            children: [
+              PageView.builder(
+                itemCount: images.length,
+                onPageChanged: (i) => setState(() => _index = i),
+                itemBuilder: (context, i) => ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: Image.network(
+                    resolveImageUrl(images[i]),
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) => const Center(
+                      child: Icon(Icons.broken_image, size: 56, color: QueensTouchColors.plumLight),
+                    ),
+                  ),
+                ),
+              ),
+              if (images.length > 1)
+                Positioned(
+                  top: 12,
+                  right: 12,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '${_index + 1}/${images.length}',
+                      style: const TextStyle(color: Colors.white, fontSize: 12),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        if (images.length > 1) ...[
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              for (var i = 0; i < images.length; i++)
+                Container(
+                  width: 8,
+                  height: 8,
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: i == _index ? QueensTouchColors.plum : QueensTouchColors.blush,
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _imageContainer(Widget child) {
     return Container(
       height: 320,
       decoration: BoxDecoration(
         color: QueensTouchColors.blushLight,
         borderRadius: BorderRadius.circular(16),
       ),
-      child: Center(
-        child: Icon(Icons.checkroom, size: 80, color: QueensTouchColors.plumLight.withValues(alpha: 0.4)),
-      ),
+      child: child,
     );
   }
 }

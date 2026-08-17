@@ -1,5 +1,39 @@
 enum ProductStatus { active, inactive, outOfStock, discontinued }
 
+/// A local file prepared for upload to the backend image endpoint.
+class UploadImage {
+  const UploadImage({
+    required this.bytes,
+    required this.filename,
+    required this.mimeType,
+  });
+
+  final List<int> bytes;
+  final String filename;
+  final String mimeType;
+}
+
+class ProductImage {
+  const ProductImage({
+    required this.id,
+    required this.url,
+    required this.position,
+    required this.isPrimary,
+  });
+
+  factory ProductImage.fromJson(Map<String, dynamic> json) => ProductImage(
+        id: json['id'] as String,
+        url: json['url'] as String,
+        position: json['position'] as int? ?? 0,
+        isPrimary: json['isPrimary'] == true,
+      );
+
+  final String id;
+  final String url;
+  final int position;
+  final bool isPrimary;
+}
+
 enum ProductLabel {
   featured,
   newArrival,
@@ -50,6 +84,94 @@ class ProductVariant {
         if (color != null) 'Color: $color',
         if (shade != null) 'Shade: $shade',
       ].join(' · ');
+}
+
+/// A variant definition used when creating/updating a product.
+class ProductVariantDraft {
+  const ProductVariantDraft({
+    required this.sku,
+    this.size,
+    this.color,
+    this.shade,
+    this.price,
+    this.stockQty = 0,
+  });
+
+  final String sku;
+  final String? size;
+  final String? color;
+  final String? shade;
+  final double? price;
+  final int stockQty;
+
+  Map<String, dynamic> toJson() => {
+        'sku': sku,
+        'size': size,
+        'color': color,
+        'shade': shade,
+        'price': price,
+        'stockQty': stockQty,
+      };
+}
+
+/// Payload for creating/updating a product through the admin API.
+class ProductDraft {
+  const ProductDraft({
+    required this.name,
+    required this.categoryId,
+    required this.brandId,
+    required this.basePrice,
+    this.slug,
+    this.description = '',
+    this.discountPrice,
+    this.stockThreshold = 5,
+    this.isFeatured = false,
+    this.isNewArrival = false,
+    this.isBestSeller = false,
+    this.isTrending = false,
+    this.specifications = const {},
+    this.variants = const [],
+  });
+
+  final String name;
+  final String? slug;
+  final String description;
+  final String categoryId;
+  final String brandId;
+  final double basePrice;
+  final double? discountPrice;
+  final int stockThreshold;
+  final bool isFeatured;
+  final bool isNewArrival;
+  final bool isBestSeller;
+  final bool isTrending;
+  final Map<String, String> specifications;
+  final List<ProductVariantDraft> variants;
+
+  Map<String, dynamic> toJson() => {
+        'name': name,
+        'slug': slug ?? _slugify(name),
+        'description': description,
+        'categoryId': categoryId,
+        'brandId': brandId,
+        'basePrice': basePrice,
+        'discountPrice': discountPrice,
+        'stockThreshold': stockThreshold,
+        'isFeatured': isFeatured,
+        'isNewArrival': isNewArrival,
+        'isBestSeller': isBestSeller,
+        'isTrending': isTrending,
+        'specifications': specifications,
+        'variants': variants.map((v) => v.toJson()).toList(),
+      };
+}
+
+String _slugify(String name) {
+  final slug = name
+      .toLowerCase()
+      .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
+      .replaceAll(RegExp(r'^-+|-+$'), '');
+  return slug.isEmpty ? 'product' : slug;
 }
 
 class Product {

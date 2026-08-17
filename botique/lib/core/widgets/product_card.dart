@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../models/product.dart';
 import '../../core/theme/theme.dart';
+import '../utils/image_url.dart';
 
 class ProductCard extends StatelessWidget {
   const ProductCard({super.key, required this.product, this.compact = false});
@@ -100,9 +101,9 @@ class _ProductImage extends StatelessWidget {
             ClipRRect(
               borderRadius: BorderRadius.circular(16),
               child: Image.network(
-                product.images.first,
+                resolveImageUrl(product.images.first),
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => _placeholder(),
+                errorBuilder: (_, _, _) => _placeholder(),
               ),
             )
           else

@@ -4,6 +4,7 @@ export interface AppConfig {
   port: number;
   databaseUrl: string;
   nodeEnv: string;
+  uploadsDir: string;
 }
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): AppConfig {
@@ -25,7 +26,12 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
       'DATABASE_URL is required. Copy backend/.env.example to backend/.env and set it.',
     );
   }
-  return { port, databaseUrl, nodeEnv: env.NODE_ENV ?? 'development' };
+  return {
+    port,
+    databaseUrl,
+    nodeEnv: env.NODE_ENV ?? 'development',
+    uploadsDir: env.UPLOADS_DIR ?? 'uploads',
+  };
 }
 
 function buildDatabaseUrl(opts: {

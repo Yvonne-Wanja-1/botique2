@@ -46,6 +46,10 @@ export const categorySchema = z.object({
   imageUrl: z.string().optional().nullable(),
 });
 
+export const productImageUpdateSchema = z.object({
+  isPrimary: z.boolean(),
+});
+
 export const brandSchema = z.object({
   name: z.string().min(1).max(200),
   slug: z.string().min(1).max(200),
