@@ -25,7 +25,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   final _addressController = TextEditingController();
   final _promoController = TextEditingController();
 
-  PaymentMethod _method = PaymentMethod.card;
+  PaymentMethod _method = PaymentMethod.paybill;
   bool _installmentRequested = false;
   bool _processing = false;
 
@@ -251,7 +251,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       installmentRequested: _installmentRequested,
     );
 
-    final repo = MockOrderRepository();
+    final repo = context.read<OrderRepository>();
     final order = await repo.placeOrder(payload);
     await cart.clear();
 

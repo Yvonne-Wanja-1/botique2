@@ -1,10 +1,12 @@
 import 'dart:async';
 
 import '../../models/cart.dart';
+import '../../models/notification.dart';
 import '../../models/order.dart';
 import '../../models/promotion.dart';
 import '../mock/mock_catalog_data.dart';
 import '../repositories/commerce_repository.dart';
+import '../repositories/notification_repository.dart';
 
 class MockCartRepository implements CartRepository {
   final List<CartItem> _items = [];
@@ -220,6 +222,28 @@ class MockOrderRepository implements OrderRepository {
   Future<List<Installment>> getInstallments({String? customerId}) async {
     return List.of(_installments);
   }
+}
+
+class MockNotificationRepository implements NotificationRepository {
+  @override
+  Future<List<StoreNotification>> getNotifications({bool unreadOnly = false}) async =>
+      _seed.where((n) => !unreadOnly || !n.isRead).toList();
+
+  @override
+  Future<void> markRead(String id) async {}
+
+  @override
+  Future<void> markAllRead() async {}
+
+  static final List<StoreNotification> _seed = [
+    StoreNotification(
+      id: 'n1',
+      type: NotificationType.promotion,
+      title: 'Welcome to Queens\' Touch',
+      body: 'Enjoy 10% off your first order with code QUEEN10.',
+      createdAt: DateTime.now().subtract(const Duration(days: 2)),
+    ),
+  ];
 }
 
 class MockPromotionRepository {
