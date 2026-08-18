@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../core/theme/theme.dart';
 import '../../core/widgets/dialogs.dart';
+import '../../data/repositories/review_repository.dart';
 import '../../models/review.dart';
 
 class ReviewsScreen extends StatefulWidget {
@@ -12,101 +14,120 @@ class ReviewsScreen extends StatefulWidget {
 }
 
 class _ReviewsScreenState extends State<ReviewsScreen> {
-  final List<Review> _reviews = [
-    Review(
-      id: 'r1',
-      productId: 'p4',
-      customerId: 'c1',
-      customerName: 'Amara Okafor',
-      rating: 5,
-      comment: 'This lipstick is absolutely gorgeous! Long lasting and the shade is perfect.',
-      isVerifiedPurchase: true,
-      isReported: false,
-      createdAt: DateTime.now().subtract(const Duration(days: 3)),
-    ),
-    Review(
-      id: 'r2',
-      productId: 'p1',
-      customerId: 'c2',
-      customerName: 'Zainab Bello',
-      rating: 4,
-      comment: 'Beautiful dress, fits perfectly. Delivery was quick too.',
-      isVerifiedPurchase: true,
-      isReported: false,
-      createdAt: DateTime.now().subtract(const Duration(days: 2)),
-    ),
-    Review(
-      id: 'r3',
-      productId: 'p3',
-      customerId: 'c9',
-      customerName: 'Unknown User',
-      rating: 2,
-      comment: 'Not worth the price honestly. (Flagged for review)',
-      isVerifiedPurchase: false,
-      isReported: true,
-      createdAt: DateTime.now().subtract(const Duration(days: 1)),
-    ),
-    Review(
-      id: 'r4',
-      productId: 'p8',
-      customerId: 'c4',
-      customerName: 'Tina Adeyemi',
-      rating: 5,
-      comment: 'My skin has never looked better. This serum is magic!',
-      isVerifiedPurchase: true,
-      isReported: false,
-      createdAt: DateTime.now().subtract(const Duration(hours: 12)),
-    ),
-  ];
+  late Future<List<Review>> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = context.read<ReviewRepository>().getPending();
+  }
+
+  void _reload() {
+    setState(() {
+      _future = context.read<ReviewRepository>().getPending();
+    });
+  }
+
+  Future<void> _approve(Review review) async {
+    final ok = await confirmDialog(
+      context,
+      title: 'Approve review?',
+      message: 'This review will be shown publicly on the product page.',
+      confirmLabel: 'Yes, approve',
+    );
+    if (!ok || !mounted) return;
+    try {
+      await context.read<ReviewRepository>().moderate(review.id, approved: true);
+      if (!mounted) return;
+      _reload();
+      showSuccessSnack(context, 'Review approved');
+    } catch (e) {
+      if (mounted) showErrorSnack(context, 'Approval failed: $e');
+    }
+  }
+
+  Future<void> _reject(Review review) async {
+    final ok = await confirmDialog(
+      context,
+      title: 'Reject review?',
+      message: 'This review will not be shown publicly.',
+      confirmLabel: 'Reject',
+      isDanger: true,
+    );
+    if (!ok || !mounted) return;
+    try {
+      await context.read<ReviewRepository>().moderate(review.id, approved: false);
+      if (!mounted) return;
+      _reload();
+      showSuccessSnack(context, 'Review rejected');
+    } catch (e) {
+      if (mounted) showErrorSnack(context, 'Rejection failed: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final reported = _reviews.where((r) => r.isReported).toList();
-    final others = _reviews.where((r) => !r.isReported).toList();
-
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        if (reported.isNotEmpty) ...[
-          Text('Reported', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-          const SizedBox(height: 8),
-          for (final r in reported) _ReviewCard(review: r, reported: true, onDelete: () => _delete(r.id)),
-          const SizedBox(height: 16),
-        ],
-        Text('All Reviews', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-        const SizedBox(height: 8),
-        for (final r in others) ...[
-          _ReviewCard(review: r, onDelete: () => _delete(r.id)),
-          const SizedBox(height: 8),
-        ],
-      ],
+    return FutureBuilder<List<Review>>(
+      future: _future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(
+                'Failed to load reviews.\n${snapshot.error}',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: QueensTouchColors.danger),
+              ),
+            ),
+          );
+        }
+        final reviews = snapshot.data ?? const <Review>[];
+        return RefreshIndicator(
+          onRefresh: () async => _reload(),
+          child: reviews.isEmpty
+              ? ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  children: const [
+                    SizedBox(height: 80),
+                    Center(
+                      child: Text(
+                        'No reviews pending approval',
+                        style: TextStyle(color: QueensTouchColors.textMuted),
+                      ),
+                    ),
+                  ],
+                )
+              : ListView.builder(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.all(16),
+                  itemCount: reviews.length,
+                  itemBuilder: (context, index) => _ReviewCard(
+                    review: reviews[index],
+                    onApprove: () => _approve(reviews[index]),
+                    onReject: () => _reject(reviews[index]),
+                  ),
+                ),
+        );
+      },
     );
-  }
-
-  Future<void> _delete(String id) async {
-    final ok = await confirmDialog(
-      context,
-      title: 'Delete review?',
-      message: 'This will permanently remove the review.',
-      isDanger: true,
-    );
-    if (!ok) return;
-    setState(() => _reviews.removeWhere((r) => r.id == id));
-    showSuccessSnack(context, 'Review deleted');
   }
 }
 
 class _ReviewCard extends StatelessWidget {
-  const _ReviewCard({required this.review, this.reported = false, required this.onDelete});
+  const _ReviewCard({required this.review, required this.onApprove, required this.onReject});
 
   final Review review;
-  final bool reported;
-  final VoidCallback onDelete;
+  final VoidCallback onApprove;
+  final VoidCallback onReject;
 
   @override
   Widget build(BuildContext context) {
     return Card(
-      color: reported ? QueensTouchColors.danger.withValues(alpha: 0.04) : null,
+      margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Column(
@@ -117,7 +138,10 @@ class _ReviewCard extends StatelessWidget {
                 CircleAvatar(
                   radius: 16,
                   backgroundColor: QueensTouchColors.blush,
-                  child: Text(review.customerName.characters.first, style: const TextStyle(fontSize: 12)),
+                  child: Text(
+                    review.customerName.characters.first,
+                    style: const TextStyle(fontSize: 12, color: QueensTouchColors.textDark),
+                  ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -128,41 +152,50 @@ class _ReviewCard extends StatelessWidget {
                 ),
                 if (review.isVerifiedPurchase)
                   const Icon(Icons.verified, size: 16, color: QueensTouchColors.success),
-                if (reported)
-                  Container(
-                    margin: const EdgeInsets.only(left: 6),
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: QueensTouchColors.danger,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Text('Reported', style: TextStyle(fontSize: 10, color: Colors.white)),
-                  ),
               ],
             ),
+            if (review.productName != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                review.productName!,
+                style: const TextStyle(fontSize: 12, color: QueensTouchColors.textMuted),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
             const SizedBox(height: 8),
             Row(
               children: [
                 for (var i = 1; i <= 5; i++)
-                  Icon(i <= review.rating ? Icons.star : Icons.star_border, size: 16, color: QueensTouchColors.gold),
+                  Icon(i <= review.rating ? Icons.star : Icons.star_border,
+                      size: 16, color: QueensTouchColors.gold),
                 const Spacer(),
                 Text(
-                  'On ${review.createdAt.day}/${review.createdAt.month}',
+                  'On ${review.createdAt.day}/${review.createdAt.month}/${review.createdAt.year}',
                   style: const TextStyle(fontSize: 11, color: QueensTouchColors.textMuted),
                 ),
               ],
             ),
             const SizedBox(height: 8),
             Text(review.comment, style: const TextStyle(fontSize: 13)),
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: onDelete,
-                icon: const Icon(Icons.delete_outline, size: 16),
-                label: const Text('Delete'),
-                style: TextButton.styleFrom(foregroundColor: QueensTouchColors.danger),
-              ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: onReject,
+                    style: OutlinedButton.styleFrom(foregroundColor: QueensTouchColors.danger),
+                    child: const Text('Reject'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: onApprove,
+                    child: const Text('Approve'),
+                  ),
+                ),
+              ],
             ),
           ],
         ),

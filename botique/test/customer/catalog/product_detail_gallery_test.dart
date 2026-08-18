@@ -5,6 +5,8 @@ import 'package:provider/provider.dart';
 import 'package:botique/customer/catalog/product_detail_screen.dart';
 import 'package:botique/data/mock/mock_catalog_repositories.dart';
 import 'package:botique/data/mock/mock_commerce_repositories.dart';
+import 'package:botique/data/mock/mock_review_repository.dart';
+import 'package:botique/data/repositories/review_repository.dart';
 import 'package:botique/models/product.dart';
 import 'package:botique/services/catalog_service.dart';
 import 'package:botique/services/cart_service.dart';
@@ -17,6 +19,7 @@ void main() {
         ChangeNotifierProvider(create: (_) => CatalogService(productRepo, MockCategoryRepository())),
         ChangeNotifierProvider(create: (_) => CartService(MockCartRepository())),
         ChangeNotifierProvider(create: (_) => WishlistService(MockWishlistRepository())),
+        Provider<ReviewRepository>(create: (_) => MockReviewRepository()),
       ],
       child: MaterialApp(
         home: ProductDetailScreen(productId: 'p-gallery'),

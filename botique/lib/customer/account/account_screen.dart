@@ -3,8 +3,12 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/theme/theme.dart';
+import '../../core/utils/currency.dart';
 import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/loading_view.dart';
+import '../../data/repositories/commerce_repository.dart';
 import '../../models/notification.dart';
+import '../../models/order.dart';
 import '../../services/auth_service.dart';
 import '../../services/notification_service.dart';
 
@@ -169,51 +173,321 @@ class _MenuItem {
   final String label;
 }
 
-class OrderHistoryScreen extends StatelessWidget {
+class OrderHistoryScreen extends StatefulWidget {
   const OrderHistoryScreen({super.key});
+
+  @override
+  State<OrderHistoryScreen> createState() => _OrderHistoryScreenState();
+}
+
+class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
+  late Future<List<Order>> _ordersFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _ordersFuture = context.read<OrderRepository>().getOrders();
+  }
+
+  Future<void> _reload() async {
+    final future = context.read<OrderRepository>().getOrders();
+    setState(() => _ordersFuture = future);
+    await future;
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Order History')),
-      body: const EmptyState(
-        icon: Icons.receipt_long,
-        title: 'No orders yet',
-        message: 'When you place an order, it will appear here.',
+      body: FutureBuilder<List<Order>>(
+        future: _ordersFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const LoadingView();
+          }
+          final orders = snapshot.data ?? const <Order>[];
+          if (orders.isEmpty) {
+            return const EmptyState(
+              icon: Icons.receipt_long,
+              title: 'No orders yet',
+              message: 'When you place an order, it will appear here.',
+            );
+          }
+          return RefreshIndicator(
+            onRefresh: _reload,
+            child: ListView.separated(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(16),
+              itemCount: orders.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 8),
+              itemBuilder: (context, index) {
+                final order = orders[index];
+                return Card(
+                  child: ListTile(
+                    title: Text(order.orderNumber),
+                    subtitle: Text('${order.status.label} • ${_formatDate(order.createdAt)}'),
+                    trailing: Text(
+                      formatKsh(order.total),
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    onTap: () => context.push('/account/order/${order.id}'),
+                  ),
+                );
+              },
+            ),
+          );
+        },
       ),
     );
   }
 }
 
-class PaymentHistoryScreen extends StatelessWidget {
+class PaymentHistoryScreen extends StatefulWidget {
   const PaymentHistoryScreen({super.key});
+
+  @override
+  State<PaymentHistoryScreen> createState() => _PaymentHistoryScreenState();
+}
+
+class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
+  late Future<List<Payment>> _paymentsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _paymentsFuture = context.read<OrderRepository>().getPayments();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Payment History')),
-      body: const EmptyState(
-        icon: Icons.payment,
-        title: 'No payments yet',
+      body: FutureBuilder<List<Payment>>(
+        future: _paymentsFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const LoadingView();
+          }
+          final payments = snapshot.data ?? const <Payment>[];
+          if (payments.isEmpty) {
+            return const EmptyState(
+              icon: Icons.payment,
+              title: 'No payments yet',
+            );
+          }
+          return ListView.separated(
+            padding: const EdgeInsets.all(16),
+            itemCount: payments.length,
+            separatorBuilder: (_, _) => const SizedBox(height: 8),
+            itemBuilder: (context, index) {
+              final payment = payments[index];
+              return Card(
+                child: ListTile(
+                  leading: const Icon(Icons.payment, color: QueensTouchColors.plum),
+                  title: Text(payment.method.label),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(payment.paymentDate ?? payment.orderNumber ?? ''),
+                      if (payment.confirmationMessage != null)
+                        Text(
+                          payment.confirmationMessage!,
+                          style: const TextStyle(fontSize: 12, color: QueensTouchColors.textMuted),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                    ],
+                  ),
+                  trailing: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        formatKsh(payment.amount),
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 4),
+                      _PaymentStatusChip(status: payment.status),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
       ),
     );
   }
 }
 
-class InstallmentsScreen extends StatelessWidget {
+class InstallmentsScreen extends StatefulWidget {
   const InstallmentsScreen({super.key});
+
+  @override
+  State<InstallmentsScreen> createState() => _InstallmentsScreenState();
+}
+
+class _InstallmentsScreenState extends State<InstallmentsScreen> {
+  late Future<List<Installment>> _installmentsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _installmentsFuture = context.read<OrderRepository>().getInstallments();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Installments')),
-      body: const EmptyState(
-        icon: Icons.calendar_month,
-        title: 'No installments',
-        message: 'Installment payment plans will appear here once approved.',
+      body: FutureBuilder<List<Installment>>(
+        future: _installmentsFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const LoadingView();
+          }
+          final plans = snapshot.data ?? const <Installment>[];
+          if (plans.isEmpty) {
+            return const EmptyState(
+              icon: Icons.calendar_month,
+              title: 'No installments',
+              message: 'Installment payment plans will appear here once approved.',
+            );
+          }
+          return ListView.separated(
+            padding: const EdgeInsets.all(16),
+            itemCount: plans.length,
+            separatorBuilder: (_, _) => const SizedBox(height: 8),
+            itemBuilder: (context, index) {
+              final plan = plans[index];
+              return Card(
+                child: ExpansionTile(
+                  leading: _InstallmentStatusChip(status: plan.status),
+                  title: Text(
+                    plan.orderNumber,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _AmountRow('Total', formatKsh(plan.totalAmount)),
+                      _AmountRow('Paid', formatKsh(plan.amountPaid)),
+                      _AmountRow('Remaining', formatKsh(plan.remainingBalance)),
+                    ],
+                  ),
+                  childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  children: [
+                    const Divider(height: 1),
+                    for (final payment in plan.schedule)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        child: Row(
+                          children: [
+                            Icon(
+                              payment.isPaid ? Icons.check_circle : Icons.radio_button_unchecked,
+                              size: 18,
+                              color: payment.isPaid ? QueensTouchColors.success : Colors.grey.shade400,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(_formatDate(payment.dueDate), style: const TextStyle(fontSize: 13)),
+                            const Spacer(),
+                            Text(
+                              formatKsh(payment.amount),
+                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            },
+          );
+        },
       ),
     );
   }
+}
+
+class _AmountRow extends StatelessWidget {
+  const _AmountRow(this.label, this.value);
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 12, color: QueensTouchColors.textMuted)),
+        Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+      ],
+    );
+  }
+}
+
+class _PaymentStatusChip extends StatelessWidget {
+  const _PaymentStatusChip({required this.status});
+
+  final PaymentStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, color) = switch (status) {
+      PaymentStatus.successful => ('Successful', QueensTouchColors.success),
+      PaymentStatus.pendingVerification => ('Pending Verification', QueensTouchColors.warning),
+      PaymentStatus.rejected => ('Rejected', QueensTouchColors.danger),
+      _ => (status.label, Colors.blueGrey),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+}
+
+class _InstallmentStatusChip extends StatelessWidget {
+  const _InstallmentStatusChip({required this.status});
+
+  final InstallmentStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, color) = switch (status) {
+      InstallmentStatus.pendingApproval => ('Pending', QueensTouchColors.warning),
+      InstallmentStatus.approved => ('Approved', Colors.blue.shade700),
+      InstallmentStatus.active => ('Active', QueensTouchColors.success),
+      InstallmentStatus.completed => ('Completed', QueensTouchColors.success),
+      InstallmentStatus.rejected => ('Rejected', QueensTouchColors.danger),
+      InstallmentStatus.overdue => ('Overdue', QueensTouchColors.danger),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+}
+
+String _formatDate(DateTime date) {
+  final y = date.year.toString().padLeft(4, '0');
+  final m = date.month.toString().padLeft(2, '0');
+  final d = date.day.toString().padLeft(2, '0');
+  return '$y-$m-$d';
 }
 
 class NotificationsScreen extends StatelessWidget {

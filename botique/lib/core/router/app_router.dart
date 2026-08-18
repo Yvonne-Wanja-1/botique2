@@ -5,6 +5,8 @@ import '../../services/auth_service.dart';
 import '../../admin/admin_shell.dart';
 import '../../customer/customer_shell.dart';
 import '../../customer/catalog/product_detail_screen.dart';
+import '../../customer/catalog/write_review_screen.dart';
+import '../../customer/orders/order_detail_screen.dart';
 import '../../customer/account/account_screen.dart';
 import '../../features/login/login_screen.dart';
 
@@ -49,8 +51,21 @@ class AppRouter {
               ),
             ),
             GoRoute(
+              path: 'product/:id/review',
+              builder: (context, state) => WriteReviewScreen(
+                productId: state.pathParameters['id']!,
+                productName: state.extra as String? ?? '',
+              ),
+            ),
+            GoRoute(
               path: 'account/profile',
               builder: (context, state) => const ProfileEditScreen(),
+            ),
+            GoRoute(
+              path: 'account/order/:id',
+              builder: (context, state) => OrderDetailScreen(
+                orderId: state.pathParameters['id']!,
+              ),
             ),
             GoRoute(
               path: 'account/orders',

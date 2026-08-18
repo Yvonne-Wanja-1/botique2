@@ -1,5 +1,4 @@
 import '../../api/api_client.dart';
-import '../../api/api_exception.dart';
 import '../../../models/order.dart';
 import '../commerce_repository.dart';
 
@@ -51,54 +50,84 @@ class ApiOrderRepository implements OrderRepository {
 
   @override
   Future<List<Payment>> getPayments({String? customerId}) async {
-    final orders = await getOrders(customerId: customerId);
-    final payments = <Payment>[];
-    for (final order in orders) {
-      try {
-        final data = await _client.get('/api/payments/${order.id}');
-        if (data is Map<String, dynamic>) {
-          final payment = Payment.fromJson(data);
-          if (payment.id.isNotEmpty) payments.add(payment);
-        }
-      } on ApiException {
-        // No payment yet for this order.
-      }
+    final data = await _client.get('/api/payments');
+    return _paymentsFromData(data);
+  }
+
+  List<Payment> _paymentsFromData(dynamic data) {
+    if (data is Map<String, dynamic> && data['rows'] is List<dynamic>) {
+      return (data['rows'] as List<dynamic>)
+          .map((e) => Payment.fromJson(e as Map<String, dynamic>))
+          .toList();
     }
-    return payments;
+    return (data as List<dynamic>)
+        .map((e) => Payment.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  @override
+  Future<List<Payment>> getPaymentsForOrder(String orderId) async {
+    final data = await _client.get('/api/payments/orders/$orderId');
+    return _paymentsFromData(data);
+  }
+
+  @override
+  Future<TransferDetails> getTransferDetails() async {
+    final data = await _client.get('/api/payments/transfer-details');
+    return TransferDetails.fromJson(data as Map<String, dynamic>);
+  }
+
+  @override
+  Future<Payment> submitPayment(SubmitPaymentPayload payload) async {
+    final data = await _client.post('/api/payments', body: {
+      'orderId': payload.orderId,
+      'amount': payload.amount,
+      'paymentDate': payload.paymentDate,
+      'confirmationMessage': payload.confirmationMessage,
+      if (payload.reference != null) 'reference': payload.reference,
+      if (payload.note != null) 'note': payload.note,
+    });
+    return Payment.fromJson(data as Map<String, dynamic>);
+  }
+
+  @override
+  Future<Payment> verifyPayment(String id) async {
+    final data = await _client.post('/api/payments/$id/verify');
+    return Payment.fromJson(data as Map<String, dynamic>);
+  }
+
+  @override
+  Future<Payment> rejectPayment(String id, {required String reason}) async {
+    final data = await _client.post('/api/payments/$id/reject', body: {'reason': reason});
+    return Payment.fromJson(data as Map<String, dynamic>);
   }
 
   @override
   Future<List<Installment>> getInstallments({String? customerId}) async {
-    final orders = await getOrders(customerId: customerId);
-    final installments = <Installment>[];
-    for (final order in orders) {
-      try {
-        final data = await _client.get('/api/installments/orders/${order.id}/plans');
-        if (data is Map<String, dynamic>) {
-          final plan = Installment.fromJson(data);
-          installments.add(_withOrderMeta(plan, order));
-        }
-      } on ApiException catch (e) {
-        if (e.code != 'NOT_FOUND') rethrow;
-      }
+    final data = await _client.get('/api/installments');
+    final List<Installment> plans;
+    if (data is Map<String, dynamic> && data['rows'] is List<dynamic>) {
+      plans = (data['rows'] as List<dynamic>)
+          .map((e) => Installment.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } else {
+      plans = (data as List<dynamic>)
+          .map((e) => Installment.fromJson(e as Map<String, dynamic>))
+          .toList();
     }
-    return installments;
+    return plans;
   }
 
-  Installment _withOrderMeta(Installment plan, Order order) {
-    return Installment(
-      id: plan.id,
-      orderId: plan.orderId,
-      orderNumber: order.orderNumber,
-      customerId: plan.customerId,
-      customerName: order.customerName,
-      totalAmount: plan.totalAmount,
-      amountPaid: plan.amountPaid,
-      schedule: plan.schedule,
-      status: plan.status,
-      termMonths: plan.termMonths,
-      createdAt: plan.createdAt,
-    );
+  @override
+  Future<Installment> approveInstallment(String id) async {
+    final data = await _client.post('/api/installments/$id/approve');
+    return Installment.fromJson(data as Map<String, dynamic>);
+  }
+
+  @override
+  Future<Installment> rejectInstallment(String id, {required String reason}) async {
+    final data = await _client.post('/api/installments/$id/reject', body: {'reason': reason});
+    return Installment.fromJson(data as Map<String, dynamic>);
   }
 
   String _methodToApi(PaymentMethod method) => switch (method) {

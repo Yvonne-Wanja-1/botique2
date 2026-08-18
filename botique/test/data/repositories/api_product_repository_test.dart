@@ -66,7 +66,7 @@ void main() {
 
   test('getReviews maps reviews', () async {
     final mock = MockClient((request) async {
-      expect(request.url.path, '/api/products/p1/reviews');
+      expect(request.url.path, '/api/reviews/products/p1/reviews');
       return http.Response(
         '{"success": true, "data": [{'
         '"id": "r1", "productId": "p1", "customerId": "u1", "customerName": "Amara",'

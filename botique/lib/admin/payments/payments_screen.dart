@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../core/theme/theme.dart';
+import '../../core/utils/currency.dart';
 import '../../core/widgets/dialogs.dart';
+import '../../data/repositories/commerce_repository.dart';
 import '../../models/order.dart';
 
 class PaymentsScreen extends StatefulWidget {
@@ -12,61 +15,41 @@ class PaymentsScreen extends StatefulWidget {
 }
 
 class _PaymentsScreenState extends State<PaymentsScreen> {
-  final List<Payment> _payments = [
-    const Payment(
-      id: 'pay1',
-      orderId: 'o1',
-      customerId: 'c1',
-      amount: 149.97,
-      method: PaymentMethod.card,
-      status: PaymentStatus.successful,
-      reference: 'PAY-REF-88231',
-    ),
-    const Payment(
-      id: 'pay2',
-      orderId: 'o2',
-      customerId: 'c2',
-      amount: 89.99,
-      method: PaymentMethod.card,
-      status: PaymentStatus.successful,
-      reference: 'PAY-REF-88245',
-    ),
-    const Payment(
-      id: 'pay3',
-      orderId: 'o3',
-      customerId: 'c3',
-      amount: 229.98,
-      method: PaymentMethod.cashOnDelivery,
-      status: PaymentStatus.pending,
-      reference: null,
-    ),
-    const Payment(
-      id: 'pay4',
-      orderId: 'o4',
-      customerId: 'c4',
-      amount: 64.99,
-      method: PaymentMethod.bankTransfer,
-      status: PaymentStatus.failed,
-      reference: 'PAY-REF-88201',
-    ),
-  ];
+  late Future<List<Payment>> _future;
 
   String _query = '';
   int _filter = 0;
 
-  static const _filters = ['All', 'Successful', 'Pending', 'Failed', 'Refunded'];
+  static const _filters = ['All', 'Pending Verification', 'Successful', 'Rejected'];
 
-  List<Payment> get _filtered {
-    var list = _payments;
-    if (_filter > 0) {
-      final target = PaymentStatus.values[_filter - 1];
-      list = list.where((p) => p.status == target).toList();
-    }
-    final q = _query.toLowerCase();
+  @override
+  void initState() {
+    super.initState();
+    _future = context.read<OrderRepository>().getPayments();
+  }
+
+  void _reload() {
+    setState(() {
+      _future = context.read<OrderRepository>().getPayments();
+    });
+  }
+
+  List<Payment> _filtered(List<Payment> payments) {
+    final PaymentStatus? target = switch (_filter) {
+      1 => PaymentStatus.pendingVerification,
+      2 => PaymentStatus.successful,
+      3 => PaymentStatus.rejected,
+      _ => null,
+    };
+    var list = target == null ? payments : payments.where((p) => p.status == target).toList();
+    final q = _query.trim().toLowerCase();
     if (q.isNotEmpty) {
-      list = list.where((p) =>
-          p.reference?.toLowerCase().contains(q) == true ||
-          p.orderId.toLowerCase().contains(q)).toList();
+      list = list.where((p) {
+        return p.reference?.toLowerCase().contains(q) == true ||
+            p.orderId.toLowerCase().contains(q) ||
+            p.orderNumber?.toLowerCase().contains(q) == true ||
+            p.customerName?.toLowerCase().contains(q) == true;
+      }).toList();
     }
     return list;
   }
@@ -81,7 +64,7 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
             children: [
               TextField(
                 decoration: const InputDecoration(
-                  hintText: 'Search by reference or order...',
+                  hintText: 'Search by reference, order or customer...',
                   prefixIcon: Icon(Icons.search),
                 ),
                 onChanged: (v) => setState(() => _query = v),
@@ -109,46 +92,46 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
         ),
         const SizedBox(height: 8),
         Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: _filtered.length,
-            itemBuilder: (context, index) {
-              final p = _filtered[index];
-              return Card(
-                margin: const EdgeInsets.only(bottom: 10),
-                child: ListTile(
-                  leading: Icon(
-                    _methodIcon(p.method),
-                    color: QueensTouchColors.plum,
+          child: FutureBuilder<List<Payment>>(
+            future: _future,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState != ConnectionState.done) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snapshot.hasError) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(
+                      'Failed to load payments.\n${snapshot.error}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: QueensTouchColors.danger),
+                    ),
                   ),
-                  title: Text(
-                    '${p.method.label} · ${p.reference ?? 'No reference'}',
-                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-                  ),
-                  subtitle: Text('Order ${p.orderId} · \$${p.amount.toStringAsFixed(2)}'),
-                  trailing: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      _statusChip(p.status),
-                      if (p.status == PaymentStatus.pending)
-                        TextButton(
-                          onPressed: () async {
-                            final ok = await confirmDialog(
-                              context,
-                              title: 'Verify payment?',
-                              message: 'Confirm this payment as successful?',
-                            );
-                            if (ok) {
-                              _markVerified(p.id);
-                              showSuccessSnack(context, 'Payment verified');
-                            }
-                          },
-                          child: const Text('Verify'),
+                );
+              }
+              final payments = snapshot.data ?? const <Payment>[];
+              final filtered = _filtered(payments);
+              return RefreshIndicator(
+                onRefresh: () async => _reload(),
+                child: filtered.isEmpty
+                    ? ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        children: const [
+                          SizedBox(height: 80),
+                          Center(child: Text('No payments found')),
+                        ],
+                      )
+                    : ListView.builder(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.all(16),
+                        itemCount: filtered.length,
+                        itemBuilder: (context, index) => _PaymentCard(
+                          payment: filtered[index],
+                          onVerify: () => _verifyPayment(filtered[index]),
+                          onReject: () => _rejectPayment(filtered[index]),
                         ),
-                    ],
-                  ),
-                ),
+                      ),
               );
             },
           ),
@@ -157,20 +140,156 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
     );
   }
 
-  void _markVerified(String id) {
-    final idx = _payments.indexWhere((p) => p.id == id);
-    if (idx >= 0) {
-      _payments[idx] = Payment(
-        id: _payments[idx].id,
-        orderId: _payments[idx].orderId,
-        customerId: _payments[idx].customerId,
-        amount: _payments[idx].amount,
-        method: _payments[idx].method,
-        status: PaymentStatus.successful,
-        reference: _payments[idx].reference,
-        createdAt: DateTime.now(),
-      );
+  Future<void> _verifyPayment(Payment p) async {
+    final ok = await confirmDialog(
+      context,
+      title: 'Verify payment?',
+      message: 'Confirm this payment as successful?',
+    );
+    if (!ok || !mounted) return;
+    final repo = context.read<OrderRepository>();
+    try {
+      await repo.verifyPayment(p.id);
+      if (!mounted) return;
+      _reload();
+      showSuccessSnack(context, 'Payment verified');
+    } catch (e) {
+      if (mounted) showErrorSnack(context, 'Verification failed: $e');
     }
+  }
+
+  Future<void> _rejectPayment(Payment p) async {
+    final reason = await _promptReason(context);
+    if (reason == null || reason.isEmpty || !mounted) return;
+    final repo = context.read<OrderRepository>();
+    try {
+      await repo.rejectPayment(p.id, reason: reason);
+      if (!mounted) return;
+      _reload();
+      showSuccessSnack(context, 'Payment rejected');
+    } catch (e) {
+      if (mounted) showErrorSnack(context, 'Rejection failed: $e');
+    }
+  }
+
+  Future<String?> _promptReason(BuildContext context) async {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reject payment'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(hintText: 'Reason for rejection'),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            child: const Text('Reject'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PaymentCard extends StatelessWidget {
+  const _PaymentCard({required this.payment, required this.onVerify, required this.onReject});
+
+  final Payment payment;
+  final VoidCallback onVerify;
+  final VoidCallback onReject;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = payment;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    p.orderNumber ?? p.orderId,
+                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                  ),
+                ),
+                _statusChip(p.status),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Icon(_methodIcon(p.method), size: 16, color: QueensTouchColors.plum),
+                const SizedBox(width: 6),
+                Text(
+                  p.customerName ?? 'Unknown customer',
+                  style: const TextStyle(fontSize: 13),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  p.method.label,
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              formatKsh(p.amount),
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: QueensTouchColors.plum),
+            ),
+            if (p.confirmationMessage != null && p.confirmationMessage!.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                p.confirmationMessage!,
+                style: const TextStyle(fontSize: 12, color: QueensTouchColors.textMuted),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+            const SizedBox(height: 4),
+            Text(
+              'Paid on ${p.paymentDate ?? p.createdAt?.toIso8601String().split('T').first ?? '—'}'
+              '${p.reference != null && p.reference!.isNotEmpty ? ' · Ref ${p.reference}' : ''}',
+              style: const TextStyle(fontSize: 11, color: QueensTouchColors.textMuted),
+            ),
+            if (p.rejectReason != null && p.rejectReason!.isNotEmpty)
+              Text(
+                'Rejected: ${p.rejectReason}',
+                style: const TextStyle(fontSize: 12, color: QueensTouchColors.danger),
+              ),
+            if (p.status == PaymentStatus.pendingVerification) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: onReject,
+                      style: OutlinedButton.styleFrom(foregroundColor: QueensTouchColors.danger),
+                      child: const Text('Reject'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: onVerify,
+                      child: const Text('Verify'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 
   IconData _methodIcon(PaymentMethod m) => switch (m) {

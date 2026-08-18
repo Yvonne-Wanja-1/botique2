@@ -14,6 +14,9 @@ export function reviewController(reviewService: ReviewService) {
     async listPending(_req: Request, res: Response): Promise<void> {
       ok(res, await reviewService.listPending());
     },
+    async eligibility(req: Request, res: Response): Promise<void> {
+      ok(res, await reviewService.getEligibility(principalId(req), req.params.productId));
+    },
     async moderate(req: Request, res: Response): Promise<void> {
       ok(res, await reviewService.moderate(req.params.id, req.body.approved));
     },

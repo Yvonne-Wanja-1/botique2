@@ -60,18 +60,20 @@ class _AdminShellState extends State<AdminShell> {
       ),
       body: Row(
         children: [
-          NavigationRail(
-            selectedIndex: _index,
-            onDestinationSelected: (i) => setState(() => _index = i),
-            labelType: NavigationRailLabelType.all,
-            leading: const SizedBox(height: 8),
-            destinations: [
-              for (final s in sections)
-                NavigationRailDestination(
-                  icon: Icon(s.icon),
-                  label: Text(s.label),
-                ),
-            ],
+          SingleChildScrollView(
+            child: NavigationRail(
+              selectedIndex: _index,
+              onDestinationSelected: (i) => setState(() => _index = i),
+              labelType: NavigationRailLabelType.all,
+              leading: const SizedBox(height: 8),
+              destinations: [
+                for (final s in sections)
+                  NavigationRailDestination(
+                    icon: Icon(s.icon),
+                    label: Text(s.label),
+                  ),
+              ],
+            ),
           ),
           VerticalDivider(width: 1),
           Expanded(child: section.builder(context)),

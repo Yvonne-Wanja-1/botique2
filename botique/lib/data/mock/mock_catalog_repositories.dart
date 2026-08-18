@@ -110,7 +110,7 @@ class MockProductRepository implements ProductRepository {
 
   @override
   Future<List<Review>> getReviews(String productId) async {
-    return _reviews.where((r) => r.productId == productId).toList();
+    return _reviews.where((r) => r.productId == productId && r.isApproved).toList();
   }
 
   @override
