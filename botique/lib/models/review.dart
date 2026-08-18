@@ -6,8 +6,11 @@ class Review {
     required this.customerName,
     required this.rating,
     required this.comment,
+    this.orderId,
+    this.productName,
     this.isVerifiedPurchase = false,
-    this.isApproved = true,
+    this.isApproved = false,
+    this.isRejected = false,
     this.isReported = false,
     required this.createdAt,
   });
@@ -20,8 +23,11 @@ class Review {
       customerName: json['customerName'] as String? ?? 'Customer',
       rating: (json['rating'] as num?)?.toDouble() ?? 0,
       comment: json['comment'] as String? ?? '',
+      orderId: json['orderId'] as String?,
+      productName: json['productName'] as String?,
       isVerifiedPurchase: json['isVerifiedPurchase'] == true,
-      isApproved: json['isApproved'] != false,
+      isApproved: json['isApproved'] == true,
+      isRejected: json['isRejected'] == true,
       isReported: json['isReported'] == true,
       createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
     );
@@ -33,10 +39,19 @@ class Review {
   final String customerName;
   final double rating;
   final String comment;
+  final String? orderId;
+  final String? productName;
   final bool isVerifiedPurchase;
   final bool isApproved;
+  final bool isRejected;
   final bool isReported;
   final DateTime createdAt;
+
+  String get statusLabel => switch ((isApproved, isRejected)) {
+        (true, _) => 'Approved',
+        (_, true) => 'Rejected',
+        _ => 'Pending Approval',
+      };
 }
 
 class Address {

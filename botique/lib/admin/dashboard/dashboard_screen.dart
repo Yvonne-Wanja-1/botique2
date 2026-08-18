@@ -3,10 +3,10 @@ import 'package:provider/provider.dart';
 
 import '../../core/theme/theme.dart';
 import '../../core/theme/responsive.dart';
+import '../../core/utils/currency.dart';
 import '../../core/widgets/empty_state.dart';
-import '../../data/mock/mock_dashboard_data.dart';
-import '../../data/repositories/commerce_repository.dart';
-import '../../models/order.dart';
+import '../../data/repositories/report_repository.dart';
+import '../../models/report.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -15,32 +15,105 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
+class _DashboardData {
+  const _DashboardData({
+    required this.sales,
+    required this.customers,
+    required this.inventory,
+    required this.inventoryRows,
+    required this.bestSellers,
+    required this.recentOrders,
+    required this.installments,
+    required this.payments,
+  });
+
+  final SalesSummary sales;
+  final CustomerSummary customers;
+  final InventorySummary inventory;
+  final List<InventoryRow> inventoryRows;
+  final List<TopProduct> bestSellers;
+  final List<SalesRow> recentOrders;
+  final InstallmentsSummary installments;
+  final PaymentsSummary payments;
+}
+
 class _DashboardScreenState extends State<DashboardScreen> {
-  late Future<int> _pendingInstallments;
-  late Future<int> _pendingPayments;
+  late Future<_DashboardData> _future;
 
   @override
   void initState() {
     super.initState();
-    _pendingInstallments = _countInstallments();
-    _pendingPayments = _countPayments();
+    _future = _load();
   }
 
-  Future<int> _countInstallments() async {
-    final repo = context.read<OrderRepository>();
-    final plans = await repo.getInstallments();
-    return plans.where((p) => p.status == InstallmentStatus.pendingApproval).length;
-  }
-
-  Future<int> _countPayments() async {
-    final repo = context.read<OrderRepository>();
-    final payments = await repo.getPayments();
-    return payments.where((p) => p.status == PaymentStatus.pendingVerification).length;
+  Future<_DashboardData> _load() async {
+    final repo = context.read<ReportRepository>();
+    final results = await Future.wait([
+      repo.getSalesSummary(),
+      repo.getCustomerSummary(),
+      repo.getInventorySummary(),
+      repo.getInventoryReport(),
+      repo.getTopProducts(),
+      repo.getSalesReport(),
+      repo.getInstallmentsSummary(),
+      repo.getPaymentsSummary(),
+    ]);
+    return _DashboardData(
+      sales: results[0] as SalesSummary,
+      customers: results[1] as CustomerSummary,
+      inventory: results[2] as InventorySummary,
+      inventoryRows: results[3] as List<InventoryRow>,
+      bestSellers: results[4] as List<TopProduct>,
+      recentOrders: results[5] as List<SalesRow>,
+      installments: results[6] as InstallmentsSummary,
+      payments: results[7] as PaymentsSummary,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final data = MockDashboardData();
+    return FutureBuilder<_DashboardData>(
+      future: _future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return EmptyState(
+            icon: Icons.error_outline,
+            title: 'Failed to load dashboard',
+            message: snapshot.error.toString(),
+            action: OutlinedButton(
+              onPressed: () => setState(() => _future = _load()),
+              child: const Text('Retry'),
+            ),
+          );
+        }
+        return _buildBody(snapshot.data!);
+      },
+    );
+  }
+
+  Widget _buildBody(_DashboardData data) {
+    final sales = data.sales;
+    final statCards = [
+      StatCard(label: 'Total Revenue', value: formatKsh(sales.totalRevenue), icon: Icons.attach_money, color: QueensTouchColors.success),
+      StatCard(label: "Today's Sales", value: formatKsh(sales.todayRevenue), icon: Icons.today, color: QueensTouchColors.plum),
+      StatCard(label: 'Total Orders', value: '${sales.totalOrders}', icon: Icons.receipt_long, color: Colors.blue),
+      StatCard(label: 'Total Customers', value: '${data.customers.totalCustomers}', icon: Icons.people, color: QueensTouchColors.warning),
+      StatCard(label: 'Total Products', value: '${data.inventory.totalProducts}', icon: Icons.inventory_2, color: QueensTouchColors.gold),
+      StatCard(label: 'Pending Orders', value: '${sales.pendingOrders}', icon: Icons.pending_actions, color: QueensTouchColors.warning),
+      StatCard(label: 'Low Stock', value: '${data.inventory.lowStock}', icon: Icons.warning_amber, color: QueensTouchColors.danger),
+      StatCard(label: 'Out of Stock', value: '${data.inventory.outOfStock}', icon: Icons.block, color: QueensTouchColors.danger),
+    ];
+
+    final lowStockItems = <String>[
+      for (final row in data.inventoryRows)
+        if (row.isOut)
+          '${row.productName} — out of stock'
+        else if (row.isLow)
+          '${row.productName} — only ${row.stockQty} left',
+    ];
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -52,62 +125,46 @@ class _DashboardScreenState extends State<DashboardScreen> {
           style: TextStyle(color: QueensTouchColors.textMuted),
         ),
         const SizedBox(height: 20),
-        _StatsGrid(stats: data.statCards),
+        _StatsGrid(stats: statCards),
         const SizedBox(height: 20),
-        if (data.lowStock.isNotEmpty) ...[
+        if (lowStockItems.isNotEmpty) ...[
           _AlertCard(
             title: 'Low Stock Alerts',
             icon: Icons.warning_amber,
             color: QueensTouchColors.warning,
-            items: data.lowStock,
+            items: lowStockItems,
           ),
           const SizedBox(height: 16),
         ],
-        FutureBuilder<int>(
-          future: _pendingInstallments,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState != ConnectionState.done) return const SizedBox.shrink();
-            final count = snapshot.data ?? 0;
-            if (count == 0) return const SizedBox.shrink();
-            return Column(
-              children: [
-                _PendingCard(
-                  count: count,
-                  onTap: () {},
-                ),
-                const SizedBox(height: 16),
-              ],
-            );
-          },
-        ),
-        FutureBuilder<int>(
-          future: _pendingPayments,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState != ConnectionState.done) return const SizedBox.shrink();
-            final count = snapshot.data ?? 0;
-            if (count == 0) return const SizedBox.shrink();
-            return Column(
-              children: [
-                _PendingCard(
-                  count: count,
-                  message: 'payment',
-                  onTap: () {},
-                ),
-                const SizedBox(height: 16),
-              ],
-            );
-          },
-        ),
+        if (data.installments.pendingApproval > 0) ...[
+          _PendingCard(count: data.installments.pendingApproval, onTap: () {}),
+          const SizedBox(height: 16),
+        ],
+        if (data.payments.pendingVerification > 0) ...[
+          _PendingCard(
+            count: data.payments.pendingVerification,
+            message: 'payment',
+            onTap: () {},
+          ),
+          const SizedBox(height: 16),
+        ],
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
               flex: 2,
-              child: _SalesTrendChart(trend: data.salesTrend),
+              child: _SalesTrendChart(daily: sales.daily),
             ),
             const SizedBox(width: 16),
             Expanded(
-              child: BestSellers(products: data.bestSellers),
+              child: data.bestSellers.isEmpty
+                  ? const Card(
+                      child: Padding(
+                        padding: EdgeInsets.all(16),
+                        child: EmptyState(icon: Icons.star_outline, title: 'No best sellers yet'),
+                      ),
+                    )
+                  : BestSellers(products: data.bestSellers),
             ),
           ],
         ),
@@ -116,6 +173,43 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ],
     );
   }
+}
+
+class StatCard {
+  const StatCard({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+    this.trend,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+  final String? trend;
+}
+
+class BestSeller {
+  const BestSeller({required this.name, required this.sold});
+
+  final String name;
+  final int sold;
+}
+
+class RecentOrder {
+  const RecentOrder({
+    required this.orderNumber,
+    required this.customer,
+    required this.total,
+    required this.status,
+  });
+
+  final String orderNumber;
+  final String customer;
+  final double total;
+  final String status;
 }
 
 class _StatsGrid extends StatelessWidget {
@@ -272,12 +366,14 @@ class _PendingCard extends StatelessWidget {
 }
 
 class _SalesTrendChart extends StatelessWidget {
-  const _SalesTrendChart({required this.trend});
+  const _SalesTrendChart({required this.daily});
 
-  final List<double> trend;
+  final List<DailyStat> daily;
 
   @override
   Widget build(BuildContext context) {
+    final recent = daily.length > 7 ? daily.sublist(0, 7).reversed.toList() : daily.reversed.toList();
+    final trend = recent.map((d) => d.revenue).toList();
     final max = trend.isEmpty ? 1.0 : trend.reduce((a, b) => a > b ? a : b);
     return Card(
       child: Padding(
@@ -289,41 +385,52 @@ class _SalesTrendChart extends StatelessWidget {
             const SizedBox(height: 4),
             Text('Last 7 days', style: TextStyle(color: QueensTouchColors.textMuted, fontSize: 12)),
             const SizedBox(height: 20),
-            SizedBox(
-              height: 120,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  for (var i = 0; i < trend.length; i++)
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            Expanded(
-                              child: Container(
-                                height: trend[i] / max * 100,
-                                decoration: BoxDecoration(
-                                  color: i == trend.length - 1
-                                      ? QueensTouchColors.plum
-                                      : QueensTouchColors.plumLight.withValues(alpha: 0.4),
-                                  borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+            if (trend.isEmpty)
+              SizedBox(
+                height: 120,
+                child: Center(
+                  child: Text(
+                    'No sales yet',
+                    style: TextStyle(color: QueensTouchColors.textMuted, fontSize: 12),
+                  ),
+                ),
+              )
+            else
+              SizedBox(
+                height: 120,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    for (var i = 0; i < trend.length; i++)
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              Expanded(
+                                child: Container(
+                                  height: trend[i] / max * 100,
+                                  decoration: BoxDecoration(
+                                    color: i == trend.length - 1
+                                        ? QueensTouchColors.plum
+                                        : QueensTouchColors.plumLight.withValues(alpha: 0.4),
+                                    borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                                  ),
                                 ),
                               ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              '${i + 1}',
-                              style: TextStyle(fontSize: 10, color: QueensTouchColors.textMuted),
-                            ),
-                          ],
+                              const SizedBox(height: 6),
+                              Text(
+                                '${i + 1}',
+                                style: TextStyle(fontSize: 10, color: QueensTouchColors.textMuted),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
-            ),
           ],
         ),
       ),
@@ -332,9 +439,9 @@ class _SalesTrendChart extends StatelessWidget {
 }
 
 class BestSellers extends StatelessWidget {
-  const BestSellers({required this.products});
+  const BestSellers({super.key, required this.products});
 
-  final List<BestSeller> products;
+  final List<TopProduct> products;
 
   @override
   Widget build(BuildContext context) {
@@ -375,7 +482,7 @@ class BestSellers extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      '${products[i].sold} sold',
+                      '${products[i].quantitySold} sold',
                       style: TextStyle(fontSize: 12, color: QueensTouchColors.textMuted),
                     ),
                   ],
@@ -389,9 +496,9 @@ class BestSellers extends StatelessWidget {
 }
 
 class RecentOrders extends StatelessWidget {
-  const RecentOrders({required this.orders});
+  const RecentOrders({super.key, required this.orders});
 
-  final List<RecentOrder> orders;
+  final List<SalesRow> orders;
 
   @override
   Widget build(BuildContext context) {
@@ -412,24 +519,24 @@ class RecentOrders extends StatelessWidget {
                   leading: CircleAvatar(
                     backgroundColor: QueensTouchColors.blushLight,
                     child: Text(
-                      order.customer.characters.first,
+                      order.customerName.isNotEmpty ? order.customerName.characters.first : '?',
                       style: const TextStyle(color: QueensTouchColors.plum, fontSize: 14),
                     ),
                   ),
                   title: Text(
-                    '${order.orderNumber} · ${order.customer}',
+                    '${order.orderNumber} · ${order.customerName}',
                     style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                   ),
                   subtitle: Text(
-                    '\$${order.total.toStringAsFixed(2)}',
+                    formatKsh(order.total),
                     style: const TextStyle(fontSize: 12),
                   ),
                   trailing: Text(
-                    order.status,
+                    _titleCase(order.orderStatus),
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: _statusColor(order.status),
+                      color: _statusColor(order.orderStatus),
                     ),
                   ),
                 ),
@@ -439,10 +546,14 @@ class RecentOrders extends StatelessWidget {
     );
   }
 
-  Color _statusColor(String status) => switch (status) {
-        'Delivered' => QueensTouchColors.success,
-        'Pending' => QueensTouchColors.warning,
-        'Processing' => Colors.blue.shade700,
+  static String _titleCase(String status) =>
+      status.isEmpty ? status : status[0].toUpperCase() + status.substring(1);
+
+  static Color _statusColor(String status) => switch (status) {
+        'delivered' => QueensTouchColors.success,
+        'pending' => QueensTouchColors.warning,
+        'processing' => Colors.blue.shade700,
+        'cancelled' => QueensTouchColors.danger,
         _ => QueensTouchColors.textMuted,
       };
 }

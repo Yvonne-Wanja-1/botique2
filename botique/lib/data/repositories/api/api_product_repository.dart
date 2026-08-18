@@ -54,7 +54,7 @@ class ApiProductRepository implements ProductRepository {
 
   @override
   Future<List<Review>> getReviews(String productId) async {
-    final data = await _client.get('/api/products/$productId/reviews');
+    final data = await _client.get('/api/reviews/products/$productId/reviews');
     return (data as List<dynamic>)
         .map((e) => Review.fromJson(e as Map<String, dynamic>))
         .toList();

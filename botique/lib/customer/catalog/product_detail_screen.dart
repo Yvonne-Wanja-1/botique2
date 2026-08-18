@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/theme/theme.dart';
 import '../../core/utils/image_url.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/loading_view.dart';
+import '../../data/repositories/review_repository.dart';
 import '../../models/product.dart';
 import '../../models/review.dart';
 import '../../services/cart_service.dart';
@@ -22,6 +24,8 @@ class ProductDetailScreen extends StatefulWidget {
 
 class _ProductDetailScreenState extends State<ProductDetailScreen> {
   late Future<Product?> _productFuture;
+  late Future<List<Review>> _reviewsFuture;
+  late Future<ReviewEligibility> _eligibilityFuture;
 
   String? _selectedSize;
   String? _selectedColor;
@@ -32,6 +36,25 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   void initState() {
     super.initState();
     _productFuture = context.read<CatalogService>().getProduct(widget.productId);
+    _reviewsFuture = context.read<CatalogService>().getReviews(widget.productId);
+    _eligibilityFuture = context.read<ReviewRepository>().getEligibility(widget.productId);
+  }
+
+  void _refreshReviews() {
+    setState(() {
+      _reviewsFuture = context.read<CatalogService>().getReviews(widget.productId);
+      _eligibilityFuture = context.read<ReviewRepository>().getEligibility(widget.productId);
+    });
+  }
+
+  Future<void> _openWriteReview(Product product) async {
+    final submitted = await context.push<bool>(
+      '/product/${widget.productId}/review',
+      extra: product.name,
+    );
+    if (submitted == true) {
+      _refreshReviews();
+    }
   }
 
   @override
@@ -53,6 +76,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           }
           return _ProductDetailBody(
             product: product,
+            reviewsFuture: _reviewsFuture,
+            eligibilityFuture: _eligibilityFuture,
+            onWriteReview: () => _openWriteReview(product),
             selectedSize: _selectedSize,
             selectedColor: _selectedColor,
             selectedShade: _selectedShade,
@@ -71,6 +97,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 class _ProductDetailBody extends StatelessWidget {
   const _ProductDetailBody({
     required this.product,
+    required this.reviewsFuture,
+    required this.eligibilityFuture,
+    required this.onWriteReview,
     required this.selectedSize,
     required this.selectedColor,
     required this.selectedShade,
@@ -82,6 +111,9 @@ class _ProductDetailBody extends StatelessWidget {
   });
 
   final Product product;
+  final Future<List<Review>> reviewsFuture;
+  final Future<ReviewEligibility> eligibilityFuture;
+  final VoidCallback onWriteReview;
   final String? selectedSize;
   final String? selectedColor;
   final String? selectedShade;
@@ -109,19 +141,7 @@ class _ProductDetailBody extends StatelessWidget {
           style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 8),
-        Row(
-          children: [
-            const Icon(Icons.star, color: QueensTouchColors.gold, size: 20),
-            const SizedBox(width: 4),
-            Text('${product.rating.toStringAsFixed(1)}'),
-            const SizedBox(width: 4),
-            Text('(${product.reviewCount} reviews)',
-                style: TextStyle(color: QueensTouchColors.textMuted)),
-            const Spacer(),
-            Text('${product.soldCount} sold',
-                style: TextStyle(color: QueensTouchColors.textMuted, fontSize: 13)),
-          ],
-        ),
+        _RatingSummary(product: product, reviewsFuture: reviewsFuture),
         const SizedBox(height: 12),
         Row(
           crossAxisAlignment: CrossAxisAlignment.end,
@@ -255,10 +275,50 @@ class _ProductDetailBody extends StatelessWidget {
           ),
         ],
         const SizedBox(height: 24),
-        _ReviewsSection(productId: product.id),
+        _ReviewsSection(
+          product: product,
+          reviewsFuture: reviewsFuture,
+          eligibilityFuture: eligibilityFuture,
+          onWriteReview: onWriteReview,
+        ),
       ],
     );
   }
+}
+
+class _RatingSummary extends StatelessWidget {
+  const _RatingSummary({required this.product, required this.reviewsFuture});
+
+  final Product product;
+  final Future<List<Review>> reviewsFuture;
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<Review>>(
+      future: reviewsFuture,
+      builder: (context, snapshot) {
+        final reviews = snapshot.data ?? const <Review>[];
+        final rating = reviews.isEmpty ? product.rating : _average(reviews);
+        final count = reviews.isEmpty ? product.reviewCount : reviews.length;
+        return Row(
+          children: [
+            const Icon(Icons.star, color: QueensTouchColors.gold, size: 20),
+            const SizedBox(width: 4),
+            Text(rating.toStringAsFixed(1)),
+            const SizedBox(width: 4),
+            Text('($count reviews)',
+                style: TextStyle(color: QueensTouchColors.textMuted)),
+            const Spacer(),
+            Text('${product.soldCount} sold',
+                style: TextStyle(color: QueensTouchColors.textMuted, fontSize: 13)),
+          ],
+        );
+      },
+    );
+  }
+
+  static double _average(List<Review> reviews) =>
+      reviews.map((r) => r.rating).reduce((a, b) => a + b) / reviews.length;
 }
 
 class _Gallery extends StatefulWidget {
@@ -426,38 +486,129 @@ class _QuantityStepper extends StatelessWidget {
 }
 
 class _ReviewsSection extends StatelessWidget {
-  const _ReviewsSection({required this.productId});
+  const _ReviewsSection({
+    required this.product,
+    required this.reviewsFuture,
+    required this.eligibilityFuture,
+    required this.onWriteReview,
+  });
 
-  final String productId;
+  final Product product;
+  final Future<List<Review>> reviewsFuture;
+  final Future<ReviewEligibility> eligibilityFuture;
+  final VoidCallback onWriteReview;
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<Review>>(
-      future: context.read<CatalogService>().getReviews(productId),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return const LoadingView();
-        }
-        final reviews = snapshot.data ?? const <Review>[];
-        if (reviews.isEmpty) {
-          return const EmptyState(
-            icon: Icons.rate_review_outlined,
-            title: 'No reviews yet',
-            message: 'Be the first to review this product after your purchase.',
-          );
-        }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Reviews', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            for (final review in reviews) ...[
-              _ReviewTile(review: review),
-              const SizedBox(height: 12),
-            ],
-          ],
-        );
-      },
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Reviews', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 12),
+        FutureBuilder<ReviewEligibility>(
+          future: eligibilityFuture,
+          builder: (context, snapshot) {
+            final eligibility = snapshot.data;
+            if (eligibility == null) return const SizedBox.shrink();
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (eligibility.canReview) ...[
+                  OutlinedButton.icon(
+                    onPressed: onWriteReview,
+                    icon: const Icon(Icons.rate_review_outlined, size: 18),
+                    label: const Text('Write a Review'),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                if (!eligibility.canReview &&
+                    eligibility.review != null) ...[
+                  _OwnReviewStatus(review: eligibility.review!),
+                  const SizedBox(height: 12),
+                ],
+                if (!eligibility.purchased)
+                  Text(
+                    'Verified buyers can write a review after their order is delivered.',
+                    style: const TextStyle(fontSize: 12, color: QueensTouchColors.textMuted),
+                  ),
+              ],
+            );
+          },
+        ),
+        const SizedBox(height: 4),
+        FutureBuilder<List<Review>>(
+          future: reviewsFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(child: CircularProgressIndicator()),
+              );
+            }
+            if (snapshot.hasError) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 24),
+                child: Text(
+                  'Could not load reviews.',
+                  style: const TextStyle(color: QueensTouchColors.textMuted),
+                ),
+              );
+            }
+            final reviews = snapshot.data ?? const <Review>[];
+            if (reviews.isEmpty) {
+              return const EmptyState(
+                icon: Icons.rate_review_outlined,
+                title: 'No reviews yet',
+                message: 'Be the first to review this product after your purchase.',
+              );
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (final review in reviews) ...[
+                  _ReviewTile(review: review),
+                  const SizedBox(height: 12),
+                ],
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _OwnReviewStatus extends StatelessWidget {
+  const _OwnReviewStatus({required this.review});
+
+  final Review review;
+
+  @override
+  Widget build(BuildContext context) {
+    final (color, icon) = switch ((review.isApproved, review.isRejected)) {
+      (true, _) => (QueensTouchColors.success, Icons.check_circle_outline),
+      (_, true) => (QueensTouchColors.danger, Icons.cancel_outlined),
+      _ => (QueensTouchColors.warning, Icons.hourglass_top),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              'Your review: ${review.statusLabel}',
+              style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -523,6 +674,11 @@ class _ReviewTile extends StatelessWidget {
                   size: 16,
                   color: QueensTouchColors.gold,
                 ),
+              const Spacer(),
+              Text(
+                _formatDate(review.createdAt),
+                style: const TextStyle(fontSize: 11, color: QueensTouchColors.textMuted),
+              ),
             ],
           ),
           const SizedBox(height: 8),
@@ -530,5 +686,16 @@ class _ReviewTile extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final that = DateTime(date.year, date.month, date.day);
+    final diff = today.difference(that).inDays;
+    if (diff == 0) return 'Today';
+    if (diff == 1) return 'Yesterday';
+    if (diff < 7) return '$diff days ago';
+    return '${date.day}/${date.month}/${date.year}';
   }
 }

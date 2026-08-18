@@ -15,6 +15,10 @@ export class ReviewService {
     return this.reviewRepo.listPending();
   }
 
+  getEligibility(customerId: string, productId: string) {
+    return this.reviewRepo.getEligibility(customerId, productId);
+  }
+
   moderate(id: string, approved: boolean) {
     return this.reviewRepo.moderate(id, approved);
   }

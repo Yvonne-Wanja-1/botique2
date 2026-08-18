@@ -7,10 +7,16 @@ import 'data/api/api_bootstrap.dart';
 import 'data/api/api_client.dart';
 import 'data/mock/mock_catalog_repositories.dart';
 import 'data/mock/mock_commerce_repositories.dart';
+import 'data/mock/mock_report_repository.dart';
+import 'data/mock/mock_review_repository.dart';
 import 'data/repositories/api/api_notification_repository.dart';
+import 'data/repositories/api/api_report_repository.dart';
+import 'data/repositories/api/api_review_repository.dart';
 import 'data/repositories/catalog_repository.dart';
 import 'data/repositories/commerce_repository.dart';
 import 'data/repositories/notification_repository.dart';
+import 'data/repositories/report_repository.dart';
+import 'data/repositories/review_repository.dart';
 import 'services/admin_catalog_service.dart';
 import 'services/auth_service.dart';
 import 'services/catalog_service.dart';
@@ -41,6 +47,8 @@ class _QueensTouchAppState extends State<QueensTouchApp> {
   late final WishlistRepository _wishlistRepo;
   late final OrderRepository _orderRepo;
   late final NotificationRepository _notificationRepo;
+  late final ReviewRepository _reviewRepo;
+  late final ReportRepository _reportRepo;
 
   @override
   void initState() {
@@ -57,6 +65,12 @@ class _QueensTouchAppState extends State<QueensTouchApp> {
     _notificationRepo = widget.apiClient != null
         ? ApiNotificationRepository(widget.apiClient!)
         : MockNotificationRepository();
+    _reviewRepo = widget.apiClient != null
+        ? ApiReviewRepository(widget.apiClient!)
+        : MockReviewRepository();
+    _reportRepo = widget.apiClient != null
+        ? ApiReportRepository(widget.apiClient!)
+        : MockReportRepository();
   }
 
   @override
@@ -85,6 +99,8 @@ class _QueensTouchAppState extends State<QueensTouchApp> {
           create: (_) => WishlistService(_wishlistRepo)..load(),
         ),
         Provider<OrderRepository>(create: (_) => _orderRepo),
+        Provider<ReviewRepository>(create: (_) => _reviewRepo),
+        Provider<ReportRepository>(create: (_) => _reportRepo),
         ChangeNotifierProvider(
           create: (_) => NotificationService(repo: _notificationRepo)..load(),
         ),
