@@ -29,7 +29,7 @@ class CartItem {
         price: unitPrice,
         categoryId: json['categoryId'] as String? ?? '',
         brandId: json['brandId'] as String? ?? '',
-        images: [if (imageUrl case final url?) url],
+        images: [?imageUrl],
       ),
       variant: variant,
       quantity: json['quantity'] is num ? (json['quantity'] as num).toInt() : 0,

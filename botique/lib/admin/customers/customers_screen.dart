@@ -128,6 +128,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
                         isDanger: true,
                       );
                       if (ok) {
+                        if (!context.mounted) return;
                         Navigator.pop(context);
                         showSuccessSnack(context, 'Account deactivated');
                       }

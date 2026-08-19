@@ -39,10 +39,12 @@ class _CatalogScreenState extends State<CatalogScreen> {
   Future<void> _load() async {
     setState(() => _loading = true);
     final result = await context.read<CatalogService>().search(_filter, _sort);
-    if (mounted) setState(() {
+    if (mounted) {
+      setState(() {
       _result = result;
       _loading = false;
     });
+    }
   }
 
   @override

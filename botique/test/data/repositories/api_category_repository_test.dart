@@ -4,7 +4,6 @@ import 'package:http/testing.dart';
 
 import 'package:botique/data/api/api_client.dart';
 import 'package:botique/data/repositories/api/api_category_repository.dart';
-import 'package:botique/models/category.dart';
 
 void main() {
   test('getRootCategories maps category list', () async {

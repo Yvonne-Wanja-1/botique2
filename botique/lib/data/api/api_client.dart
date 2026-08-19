@@ -8,10 +8,8 @@ import '../../models/product.dart';
 import 'api_exception.dart';
 
 class ApiClient {
-  ApiClient({required this.baseUrl, String? userId, String? role, http.Client? client})
-      : _userId = userId,
-        _role = role,
-        _client = client ?? http.Client();
+  ApiClient({required this.baseUrl, this._userId, this._role, http.Client? client})
+      : _client = client ?? http.Client();
 
   final String baseUrl;
   final http.Client _client;

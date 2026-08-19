@@ -38,7 +38,7 @@ class CartScreen extends StatelessWidget {
                   child: ListView.separated(
                     padding: const EdgeInsets.all(16),
                     itemCount: cart.items.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 12),
+                    separatorBuilder: (_, _) => const SizedBox(height: 12),
                     itemBuilder: (context, index) => TweenAnimationBuilder<double>(
                       key: ValueKey(
                         'cart-item-${cart.items[index].product.id}-${cart.items[index].variant?.id}',

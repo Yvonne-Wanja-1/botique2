@@ -176,6 +176,7 @@ class _PromotionsScreenState extends State<PromotionsScreen> {
                 Navigator.pop(context);
                 final ok = await confirmDialog(context, title: 'Delete promotion?', message: '${p.code} will be removed.', isDanger: true);
                 if (ok) {
+                  if (!context.mounted) return;
                   setState(() => _promotions.removeWhere((x) => x.id == p.id));
                   showSuccessSnack(context, 'Promotion deleted');
                 }

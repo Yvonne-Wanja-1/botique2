@@ -234,14 +234,20 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 8),
-            for (final method in PaymentMethod.values)
-              RadioListTile<PaymentMethod>(
-                title: Text(_methodLabel(method)),
-                value: method,
-                groupValue: _method,
-                dense: true,
-                onChanged: (v) => setState(() => _method = v!),
+            RadioGroup<PaymentMethod>(
+              groupValue: _method,
+              onChanged: (v) => setState(() => _method = v!),
+              child: Column(
+                children: [
+                  for (final method in PaymentMethod.values)
+                    RadioListTile<PaymentMethod>(
+                      title: Text(_methodLabel(method)),
+                      value: method,
+                      dense: true,
+                    ),
+                ],
               ),
+            ),
             const SizedBox(height: 8),
             SwitchListTile(
               title: const Text('Request installment payment'),
