@@ -393,31 +393,63 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                 runSpacing: 8,
                 children: [
                   for (var i = 0; i < _picked.length; i++)
-                    Stack(
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Container(
-                          width: 88,
-                          height: 88,
-                          clipBehavior: Clip.antiAlias,
-                          decoration: BoxDecoration(
-                            color: QueensTouchColors.blushLight,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Image.memory(_picked[i].bytes, fit: BoxFit.cover),
-                        ),
-                        Positioned(
-                          top: 2,
-                          right: 2,
-                          child: InkWell(
-                            onTap: () => setState(() => _picked.removeAt(i)),
-                            child: Container(
-                              decoration: const BoxDecoration(
-                                color: Colors.black54,
-                                shape: BoxShape.circle,
+                        Stack(
+                          children: [
+                            Container(
+                              width: 88,
+                              height: 88,
+                              clipBehavior: Clip.antiAlias,
+                              decoration: BoxDecoration(
+                                color: QueensTouchColors.blushLight,
+                                borderRadius: BorderRadius.circular(12),
                               ),
-                              child: const Icon(Icons.close, size: 16, color: Colors.white),
+                              child: Image.memory(_picked[i].bytes, fit: BoxFit.cover),
                             ),
-                          ),
+                            Positioned(
+                              top: 2,
+                              right: 2,
+                              child: InkWell(
+                                onTap: () => setState(() => _picked.removeAt(i)),
+                                child: Container(
+                                  decoration: const BoxDecoration(
+                                    color: Colors.black54,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.close, size: 16, color: Colors.white),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            IconButton(
+                              visualDensity: VisualDensity.compact,
+                              icon: const Icon(Icons.arrow_back, size: 14),
+                              onPressed: i == 0
+                                  ? null
+                                  : () => setState(() {
+                                        final tmp = _picked[i];
+                                        _picked[i] = _picked[i - 1];
+                                        _picked[i - 1] = tmp;
+                                      }),
+                            ),
+                            IconButton(
+                              visualDensity: VisualDensity.compact,
+                              icon: const Icon(Icons.arrow_forward, size: 14),
+                              onPressed: i == _picked.length - 1
+                                  ? null
+                                  : () => setState(() {
+                                        final tmp = _picked[i];
+                                        _picked[i] = _picked[i + 1];
+                                        _picked[i + 1] = tmp;
+                                      }),
+                            ),
+                          ],
                         ),
                       ],
                     ),

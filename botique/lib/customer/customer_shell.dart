@@ -10,6 +10,7 @@ import '../customer/account/account_screen.dart';
 import '../services/cart_service.dart';
 import '../services/wishlist_service.dart';
 import '../services/notification_service.dart';
+import '../core/animations/qts_animation.dart';
 import 'package:provider/provider.dart';
 
 class CustomerShell extends StatefulWidget {
@@ -46,10 +47,14 @@ class _CustomerShellState extends State<CustomerShell> {
           Consumer<NotificationService>(
             builder: (context, ns, _) {
               return IconButton(
-                icon: Badge(
-                  isLabelVisible: ns.unreadCount > 0,
-                  label: Text('${ns.unreadCount}'),
-                  child: const Icon(Icons.notifications_outlined),
+                icon: AnimatedSwitcher(
+                  duration: QtMotion.fast,
+                  child: Badge(
+                    key: ValueKey(ns.unreadCount),
+                    isLabelVisible: ns.unreadCount > 0,
+                    label: Text('${ns.unreadCount}'),
+                    child: const Icon(Icons.notifications_outlined),
+                  ),
                 ),
                 onPressed: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const NotificationsScreen()),
