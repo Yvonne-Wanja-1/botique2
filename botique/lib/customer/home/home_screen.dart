@@ -240,7 +240,7 @@ class _ProductRow extends StatelessWidget {
           final product = products[index];
           return SizedBox(
             width: Responsive.isMobile(context) ? 150 : 200,
-            child: ProductCard(product: product, heroTag: null),
+            child: ProductCard(product: product),
           );
         },
       ),

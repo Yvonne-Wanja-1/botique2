@@ -169,10 +169,7 @@ class _ProductGrid extends StatelessWidget {
         childAspectRatio: 0.7,
       ),
       itemCount: products.length,
-      itemBuilder: (context, index) => ProductCard(
-        product: products[index],
-        heroTag: 'catalog-${products[index].id}',
-      ),
+      itemBuilder: (context, index) => ProductCard(product: products[index]),
     );
   }
 }
