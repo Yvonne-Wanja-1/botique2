@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/animations/animated_counter.dart';
+import '../../core/animations/product_image_reveal.dart';
+import '../../core/animations/product_presentation.dart';
+import '../../core/animations/qts_animation.dart';
 import '../../core/theme/theme.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../models/cart.dart';
@@ -14,30 +18,48 @@ class CartScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final cart = context.watch<CartService>();
 
-    if (cart.isEmpty) {
-      return const EmptyState(
-        icon: Icons.shopping_cart_outlined,
-        title: 'Your cart is empty',
-        message: 'Explore the boutique and find something beautiful.',
-        action: TextButton(
-          onPressed: null,
-          child: Text('Browse Products'),
-        ),
-      );
-    }
-
-    return Column(
-      children: [
-        Expanded(
-          child: ListView.separated(
-            padding: const EdgeInsets.all(16),
-            itemCount: cart.items.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
-            itemBuilder: (context, index) => _CartItemTile(item: cart.items[index]),
-          ),
-        ),
-        _CartSummary(cart: cart),
-      ],
+    return AnimatedSwitcher(
+      duration: QtMotion.normal,
+      child: cart.isEmpty
+          ? const EmptyState(
+              key: ValueKey('cart-empty'),
+              icon: Icons.shopping_cart_outlined,
+              title: 'Your cart is empty',
+              message: 'Explore the boutique and find something beautiful.',
+              action: TextButton(
+                onPressed: null,
+                child: Text('Browse Products'),
+              ),
+            )
+          : Column(
+              key: const ValueKey('cart-filled'),
+              children: [
+                Expanded(
+                  child: ListView.separated(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: cart.items.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 12),
+                    itemBuilder: (context, index) => TweenAnimationBuilder<double>(
+                      key: ValueKey(
+                        'cart-item-${cart.items[index].product.id}-${cart.items[index].variant?.id}',
+                      ),
+                      tween: Tween(begin: 0.0, end: 1.0),
+                      duration: QtMotion.normal,
+                      curve: QtMotion.signature,
+                      builder: (context, v, child) => Opacity(
+                        opacity: v,
+                        child: Transform.translate(
+                          offset: Offset(0, 10 * (1 - v)),
+                          child: child,
+                        ),
+                      ),
+                      child: _CartItemTile(item: cart.items[index]),
+                    ),
+                  ),
+                ),
+                _CartSummary(cart: cart),
+              ],
+            ),
     );
   }
 }
@@ -56,14 +78,17 @@ class _CartItemTile extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
+            SizedBox(
               width: 72,
               height: 72,
-              decoration: BoxDecoration(
-                color: QueensTouchColors.blushLight,
+              child: ProductImageReveal(
+                imageUrl: item.product.images.isNotEmpty ? item.product.images.first : '',
                 borderRadius: BorderRadius.circular(12),
+                presentation: presentationFor(
+                  categorySlug: item.product.categorySlug,
+                  categoryId: item.product.categoryId,
+                ),
               ),
-              child: const Icon(Icons.checkroom, color: QueensTouchColors.plumLight),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -169,13 +194,34 @@ class _CartSummary extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _SummaryRow(label: 'Subtotal', value: '\$${cart.subtotal.toStringAsFixed(2)}'),
-            _SummaryRow(label: 'Shipping', value: shipping == 0 ? 'Free' : '\$${shipping.toStringAsFixed(2)}'),
+            _SummaryRow(
+              label: 'Subtotal',
+              value: AnimatedCounter(
+                value: cart.subtotal,
+                format: (v) => '\$${v.toStringAsFixed(2)}',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+            _SummaryRow(
+              label: 'Shipping',
+              value: Text(
+                shipping == 0 ? 'Free' : '\$${shipping.toStringAsFixed(2)}',
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+              ),
+            ),
             const Divider(height: 20),
             _SummaryRow(
               label: 'Total',
-              value: '\$${(cart.subtotal + shipping).toStringAsFixed(2)}',
               isTotal: true,
+              value: AnimatedCounter(
+                value: cart.subtotal + shipping,
+                format: (v) => '\$${v.toStringAsFixed(2)}',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                  color: QueensTouchColors.plum,
+                ),
+              ),
             ),
             const SizedBox(height: 12),
             SizedBox(
@@ -200,7 +246,7 @@ class _SummaryRow extends StatelessWidget {
   const _SummaryRow({required this.label, required this.value, this.isTotal = false});
 
   final String label;
-  final String value;
+  final Widget value;
   final bool isTotal;
 
   @override
@@ -217,14 +263,7 @@ class _SummaryRow extends StatelessWidget {
               fontSize: isTotal ? 16 : 14,
             ),
           ),
-          Text(
-            value,
-            style: TextStyle(
-              fontWeight: isTotal ? FontWeight.w700 : FontWeight.w600,
-              fontSize: isTotal ? 16 : 14,
-              color: isTotal ? QueensTouchColors.plum : null,
-            ),
-          ),
+          value,
         ],
       ),
     );
