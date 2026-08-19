@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/animations/fashion_beauty_reveal.dart';
 import '../../core/theme/theme.dart';
 import '../../core/widgets/dialogs.dart';
 import '../../core/widgets/loading_view.dart';
@@ -36,7 +37,9 @@ class _SubmitPaymentScreenState extends State<SubmitPaymentScreen> {
   @override
   void initState() {
     super.initState();
-    _amountController = TextEditingController(text: widget.amount.toStringAsFixed(2));
+    _amountController = TextEditingController(
+      text: widget.amount.toStringAsFixed(2),
+    );
     _paymentDate = DateTime.now();
     _detailsFuture = context.read<OrderRepository>().getTransferDetails();
   }
@@ -83,7 +86,9 @@ class _SubmitPaymentScreenState extends State<SubmitPaymentScreen> {
         reference: _referenceController.text.trim().isEmpty
             ? null
             : _referenceController.text.trim(),
-        note: _noteController.text.trim().isEmpty ? null : _noteController.text.trim(),
+        note: _noteController.text.trim().isEmpty
+            ? null
+            : _noteController.text.trim(),
       ),
     );
 
@@ -108,26 +113,37 @@ class _SubmitPaymentScreenState extends State<SubmitPaymentScreen> {
                   return const LoadingView();
                 }
                 final details = snapshot.data;
-                return Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'How to pay',
-                          style: TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                        const SizedBox(height: 12),
-                        _Row(label: 'Paybill', value: details?.paybillNumber ?? '222111'),
-                        const SizedBox(height: 6),
-                        _Row(label: 'Account', value: details?.accountNumber ?? '65727'),
-                        const SizedBox(height: 12),
-                        Text(
-                          'Order: ${widget.orderNumber}',
-                          style: const TextStyle(fontSize: 13, color: QueensTouchColors.textMuted),
-                        ),
-                      ],
+                return BeautyReveal(
+                  child: Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'How to pay',
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(height: 12),
+                          _Row(
+                            label: 'Paybill',
+                            value: details?.paybillNumber ?? '222111',
+                          ),
+                          const SizedBox(height: 6),
+                          _Row(
+                            label: 'Account',
+                            value: details?.accountNumber ?? '65727',
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Order: ${widget.orderNumber}',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: QueensTouchColors.textMuted,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 );
@@ -137,7 +153,9 @@ class _SubmitPaymentScreenState extends State<SubmitPaymentScreen> {
             TextFormField(
               controller: _amountController,
               decoration: const InputDecoration(labelText: 'Amount (KSh)'),
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               validator: (v) {
                 final value = double.tryParse(v?.trim() ?? '');
                 if (value == null || value <= 0) return 'Enter a valid amount';
@@ -159,7 +177,9 @@ class _SubmitPaymentScreenState extends State<SubmitPaymentScreen> {
             const SizedBox(height: 12),
             TextFormField(
               controller: _referenceController,
-              decoration: const InputDecoration(labelText: 'M-Pesa/Family Bank reference (optional)'),
+              decoration: const InputDecoration(
+                labelText: 'M-Pesa/Family Bank reference (optional)',
+              ),
             ),
             const SizedBox(height: 12),
             TextFormField(
@@ -171,7 +191,8 @@ class _SubmitPaymentScreenState extends State<SubmitPaymentScreen> {
                 hintText: 'Paste the full confirmation message you received',
                 alignLabelWithHint: true,
               ),
-              validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
+              validator: (v) =>
+                  v == null || v.trim().isEmpty ? 'Required' : null,
             ),
             const SizedBox(height: 12),
             TextFormField(
@@ -187,7 +208,10 @@ class _SubmitPaymentScreenState extends State<SubmitPaymentScreen> {
                     ? const SizedBox(
                         height: 20,
                         width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
                       )
                     : const Text('Submit Payment'),
               ),

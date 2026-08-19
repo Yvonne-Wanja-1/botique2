@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/animations/animated_counter.dart';
+import '../../core/animations/order_timeline.dart';
+import '../../core/animations/qts_animation.dart';
 import '../../core/theme/theme.dart';
 import '../../core/utils/currency.dart';
 import '../../core/widgets/empty_state.dart';
@@ -59,7 +62,8 @@ class _OrderDetailBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final remaining = order.paymentSummary.remaining;
-    final showPay = remaining > 0 && order.paymentMethod != PaymentMethod.cashOnDelivery;
+    final showPay =
+        remaining > 0 && order.paymentMethod != PaymentMethod.cashOnDelivery;
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -99,14 +103,20 @@ class _StatusHeaderCard extends StatelessWidget {
           children: [
             Text(
               order.orderNumber,
-              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18, color: QueensTouchColors.plum),
+              style: const TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 18,
+                color: QueensTouchColors.plum,
+              ),
             ),
             const SizedBox(height: 8),
             Row(
               children: [
                 _StatusChip(
                   label: order.status.label,
-                  color: order.status == OrderStatus.cancelled ? QueensTouchColors.danger : QueensTouchColors.success,
+                  color: order.status == OrderStatus.cancelled
+                      ? QueensTouchColors.danger
+                      : QueensTouchColors.success,
                 ),
                 const SizedBox(width: 8),
                 _StatusChip(
@@ -115,14 +125,24 @@ class _StatusHeaderCard extends StatelessWidget {
                 ),
               ],
             ),
+            const SizedBox(height: 12),
+            OrderTimeline(status: order.status),
+            const SizedBox(height: 12),
+            PaymentStatusFlow(status: order.paymentStatus),
             const Divider(height: 24),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Total', style: TextStyle(color: QueensTouchColors.textMuted)),
+                const Text(
+                  'Total',
+                  style: TextStyle(color: QueensTouchColors.textMuted),
+                ),
                 Text(
                   formatKsh(order.total),
-                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 18,
+                  ),
                 ),
               ],
             ),
@@ -152,11 +172,41 @@ class _PaymentSummaryCard extends StatelessWidget {
               style: TextStyle(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 12),
-            _SummaryRow(label: 'Verified', value: formatKsh(summary.verified), color: QueensTouchColors.success),
+            _SummaryRow(
+              label: 'Verified',
+              value: AnimatedCounter(
+                value: summary.verified,
+                format: formatKsh,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: QueensTouchColors.success,
+                ),
+              ),
+            ),
             const SizedBox(height: 8),
-            _SummaryRow(label: 'Pending', value: formatKsh(summary.pending), color: QueensTouchColors.warning),
+            _SummaryRow(
+              label: 'Pending',
+              value: AnimatedCounter(
+                value: summary.pending,
+                format: formatKsh,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: QueensTouchColors.warning,
+                ),
+              ),
+            ),
             const SizedBox(height: 8),
-            _SummaryRow(label: 'Remaining', value: formatKsh(summary.remaining), color: QueensTouchColors.plum),
+            _SummaryRow(
+              label: 'Remaining',
+              value: AnimatedCounter(
+                value: summary.remaining,
+                format: formatKsh,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: QueensTouchColors.plum,
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -165,11 +215,10 @@ class _PaymentSummaryCard extends StatelessWidget {
 }
 
 class _SummaryRow extends StatelessWidget {
-  const _SummaryRow({required this.label, required this.value, required this.color});
+  const _SummaryRow({required this.label, required this.value});
 
   final String label;
-  final String value;
-  final Color color;
+  final Widget value;
 
   @override
   Widget build(BuildContext context) {
@@ -177,14 +226,17 @@ class _SummaryRow extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(label, style: const TextStyle(color: QueensTouchColors.textMuted)),
-        Text(value, style: TextStyle(fontWeight: FontWeight.w600, color: color)),
+        value,
       ],
     );
   }
 }
 
 class _PaymentInstructionsCard extends StatelessWidget {
-  const _PaymentInstructionsCard({required this.order, required this.remaining});
+  const _PaymentInstructionsCard({
+    required this.order,
+    required this.remaining,
+  });
 
   final Order order;
   final double remaining;
@@ -209,10 +261,16 @@ class _PaymentInstructionsCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Total due', style: TextStyle(color: QueensTouchColors.textMuted)),
+                const Text(
+                  'Total due',
+                  style: TextStyle(color: QueensTouchColors.textMuted),
+                ),
                 Text(
                   formatKsh(remaining),
-                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                  ),
                 ),
               ],
             ),
@@ -282,7 +340,10 @@ class _InstallmentCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Installment Plan', style: TextStyle(fontWeight: FontWeight.w700)),
+                const Text(
+                  'Installment Plan',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
                 const SizedBox(height: 12),
                 if (plan == null)
                   const Text(
@@ -290,7 +351,31 @@ class _InstallmentCard extends StatelessWidget {
                     style: TextStyle(color: QueensTouchColors.warning),
                   )
                 else ...[
-                  _StatusChip(label: _installmentStatusLabel(plan.status), color: _installmentStatusColor(plan.status)),
+                  _StatusChip(
+                    label: _installmentStatusLabel(plan.status),
+                    color: _installmentStatusColor(plan.status),
+                  ),
+                  const SizedBox(height: 12),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween<double>(
+                        end: plan.totalAmount <= 0
+                            ? 0.0
+                            : (plan.amountPaid / plan.totalAmount)
+                                  .clamp(0.0, 1.0)
+                                  .toDouble(),
+                      ),
+                      duration: QtMotion.normal,
+                      curve: QtMotion.signature,
+                      builder: (context, v, _) => LinearProgressIndicator(
+                        value: v,
+                        minHeight: 8,
+                        backgroundColor: const Color(0xFFEEDFE4),
+                        color: QueensTouchColors.success,
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   Text(
                     'Total ${formatKsh(plan.totalAmount)}  •  Paid ${formatKsh(plan.amountPaid)}',
@@ -303,16 +388,26 @@ class _InstallmentCard extends StatelessWidget {
                       child: Row(
                         children: [
                           Icon(
-                            payment.isPaid ? Icons.check_circle : Icons.radio_button_unchecked,
+                            payment.isPaid
+                                ? Icons.check_circle
+                                : Icons.radio_button_unchecked,
                             size: 18,
-                            color: payment.isPaid ? QueensTouchColors.success : Colors.grey.shade400,
+                            color: payment.isPaid
+                                ? QueensTouchColors.success
+                                : Colors.grey.shade400,
                           ),
                           const SizedBox(width: 8),
-                          Text(_formatDate(payment.dueDate), style: const TextStyle(fontSize: 13)),
+                          Text(
+                            _formatDate(payment.dueDate),
+                            style: const TextStyle(fontSize: 13),
+                          ),
                           const Spacer(),
                           Text(
                             formatKsh(payment.amount),
-                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ],
                       ),
@@ -357,7 +452,10 @@ class _ItemsCard extends StatelessWidget {
                     ),
                     Text(
                       formatKsh(item.lineTotal),
-                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ],
                 ),
@@ -389,7 +487,10 @@ class _PaymentHistoryCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Payment History', style: TextStyle(fontWeight: FontWeight.w700)),
+                const Text(
+                  'Payment History',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
                 const SizedBox(height: 12),
                 if (payments.isEmpty)
                   const Text(
@@ -406,12 +507,17 @@ class _PaymentHistoryCard extends StatelessWidget {
                             children: [
                               Text(
                                 formatKsh(payment.amount),
-                                style: const TextStyle(fontWeight: FontWeight.w600),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                               if (payment.confirmationMessage != null)
                                 Text(
                                   payment.confirmationMessage!,
-                                  style: const TextStyle(fontSize: 12, color: QueensTouchColors.textMuted),
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: QueensTouchColors.textMuted,
+                                  ),
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -452,36 +558,40 @@ class _StatusChip extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600),
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }
 }
 
 Color _paymentStatusColor(PaymentStatus status) => switch (status) {
-      PaymentStatus.successful => QueensTouchColors.success,
-      PaymentStatus.pendingVerification => QueensTouchColors.warning,
-      PaymentStatus.rejected => QueensTouchColors.danger,
-      _ => Colors.blueGrey,
-    };
+  PaymentStatus.successful => QueensTouchColors.success,
+  PaymentStatus.pendingVerification => QueensTouchColors.warning,
+  PaymentStatus.rejected => QueensTouchColors.danger,
+  _ => Colors.blueGrey,
+};
 
 String _installmentStatusLabel(InstallmentStatus status) => switch (status) {
-      InstallmentStatus.pendingApproval => 'Pending Approval',
-      InstallmentStatus.approved => 'Approved',
-      InstallmentStatus.active => 'Active',
-      InstallmentStatus.completed => 'Completed',
-      InstallmentStatus.rejected => 'Rejected',
-      InstallmentStatus.overdue => 'Overdue',
-    };
+  InstallmentStatus.pendingApproval => 'Pending Approval',
+  InstallmentStatus.approved => 'Approved',
+  InstallmentStatus.active => 'Active',
+  InstallmentStatus.completed => 'Completed',
+  InstallmentStatus.rejected => 'Rejected',
+  InstallmentStatus.overdue => 'Overdue',
+};
 
 Color _installmentStatusColor(InstallmentStatus status) => switch (status) {
-      InstallmentStatus.pendingApproval => QueensTouchColors.warning,
-      InstallmentStatus.approved => Colors.blue.shade700,
-      InstallmentStatus.active => QueensTouchColors.success,
-      InstallmentStatus.completed => QueensTouchColors.success,
-      InstallmentStatus.rejected => QueensTouchColors.danger,
-      InstallmentStatus.overdue => QueensTouchColors.danger,
-    };
+  InstallmentStatus.pendingApproval => QueensTouchColors.warning,
+  InstallmentStatus.approved => Colors.blue.shade700,
+  InstallmentStatus.active => QueensTouchColors.success,
+  InstallmentStatus.completed => QueensTouchColors.success,
+  InstallmentStatus.rejected => QueensTouchColors.danger,
+  InstallmentStatus.overdue => QueensTouchColors.danger,
+};
 
 String _formatDate(DateTime date) {
   final y = date.year.toString().padLeft(4, '0');
