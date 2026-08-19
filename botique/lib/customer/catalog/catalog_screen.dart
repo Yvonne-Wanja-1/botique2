@@ -179,7 +179,7 @@ class _ProductGrid extends StatelessWidget {
         index: index,
         child: ProductCard(
           product: products[index],
-          heroTag: 'catalog-${products[index].id}',
+          heroTag: 'product-image-${products[index].id}',
         ),
       ),
     );
