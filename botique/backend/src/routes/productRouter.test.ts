@@ -58,4 +58,19 @@ describe('products API', () => {
     expect(res.status).toBe(201);
     expect(res.body.data.variants[0].stockQty).toBe(4);
   });
+
+  it('returns the category slug on product payloads', async () => {
+    const res = await request(app)
+      .get('/api/products/00000000-0000-0000-0000-000000000501')
+      .set('x-user-id', '00000000-0000-0000-0000-000000000201');
+    expect(res.status).toBe(200);
+    expect(res.body.data.categorySlug).toBe('clothing-dresses');
+
+    const list = await request(app)
+      .get('/api/products?featured=true')
+      .set('x-user-id', '00000000-0000-0000-0000-000000000201');
+    expect(list.status).toBe(200);
+    expect(list.body.data.products.length).toBeGreaterThan(0);
+    expect(list.body.data.products[0].categorySlug).toBeTruthy();
+  });
 });

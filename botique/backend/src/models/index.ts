@@ -51,6 +51,7 @@ export interface Product {
   slug: string;
   description: string;
   categoryId: string;
+  categorySlug: string;
   brandId: string;
   basePrice: number;
   discountPrice: number | null;
@@ -72,6 +73,7 @@ export interface Product {
 }
 export type ProductRow = Omit<Product, 'variants' | 'images' | 'specifications' | 'categoryId' | 'brandId' | 'basePrice' | 'discountPrice' | 'stockThreshold' | 'rating' | 'reviewCount' | 'soldCount' | 'viewCount' | 'isFeatured' | 'isNewArrival' | 'isBestSeller' | 'isTrending' | 'createdAt' | 'updatedAt'> & {
   category_id: string;
+  category_slug: string | null;
   brand_id: string;
   base_price: string;
   discount_price: string | null;
