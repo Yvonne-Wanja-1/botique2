@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class QueensTouchColors {
   QueensTouchColors._();
@@ -39,6 +40,21 @@ class QueensTouchTheme {
         displayLarge: base.textTheme.displayLarge?.copyWith(
           fontWeight: FontWeight.w600,
           letterSpacing: 0.5,
+        ),
+        displayMedium: GoogleFonts.cormorantGaramond(
+          fontSize: 34,
+          fontWeight: FontWeight.w600,
+          color: base.colorScheme.onSurface,
+        ),
+        headlineLarge: GoogleFonts.cormorantGaramond(
+          fontSize: 30,
+          fontWeight: FontWeight.w700,
+          color: base.colorScheme.onSurface,
+        ),
+        headlineSmall: GoogleFonts.cormorantGaramond(
+          fontSize: 22,
+          fontWeight: FontWeight.w700,
+          color: base.colorScheme.onSurface,
         ),
         headlineMedium: base.textTheme.headlineMedium?.copyWith(
           fontWeight: FontWeight.w600,
@@ -108,6 +124,23 @@ class QueensTouchTheme {
           side: const BorderSide(color: Color(0xFFEEDFE4)),
         ),
       ),
+    );
+  }
+
+  /// Editorial serif for brand moments (wordmark, hero, section titles).
+  static TextStyle brandSerif({
+    double fontSize = 24,
+    FontWeight weight = FontWeight.w600,
+    Color color = QueensTouchColors.textDark,
+    double height = 1.15,
+    double letterSpacing = 0.5,
+  }) {
+    return GoogleFonts.cormorantGaramond(
+      fontSize: fontSize,
+      fontWeight: weight,
+      color: color,
+      height: height,
+      letterSpacing: letterSpacing,
     );
   }
 }
