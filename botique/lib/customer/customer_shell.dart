@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/theme/theme.dart';
 import '../customer/home/home_screen.dart';
 import '../customer/catalog/categories_screen.dart';
 import '../customer/catalog/catalog_screen.dart';
@@ -29,10 +30,10 @@ class _CustomerShellState extends State<CustomerShell> {
       appBar: AppBar(
         title: Text(
           _titles[_index],
-          style: const TextStyle(
-            fontFamily: 'Georgia',
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1.2,
+          style: QueensTouchTheme.brandSerif(
+            fontSize: 20,
+            weight: FontWeight.w700,
+            color: QueensTouchColors.textDark,
           ),
         ),
         actions: [
