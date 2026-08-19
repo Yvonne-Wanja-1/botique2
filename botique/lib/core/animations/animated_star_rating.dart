@@ -24,19 +24,26 @@ class AnimatedStarRating extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         for (var i = 1; i <= 5; i++)
-          GestureDetector(
-            onTap: enabled ? () => onChanged(i) : null,
-            child: AnimatedScale(
-              scale: i <= rating ? 1.0 : 0.9,
-              duration: QtMotion.fast,
-              curve: QtMotion.signature,
-              child: AnimatedOpacity(
-                opacity: i <= rating ? 1.0 : 0.45,
-                duration: QtMotion.fast,
-                child: Icon(
-                  Icons.star,
-                  size: size,
-                  color: QueensTouchColors.gold,
+          SizedBox(
+            width: 48,
+            height: 48,
+            child: GestureDetector(
+              onTap: enabled ? () => onChanged(i) : null,
+              behavior: HitTestBehavior.opaque,
+              child: Center(
+                child: AnimatedScale(
+                  scale: i <= rating ? 1.0 : 0.9,
+                  duration: QtMotion.fast,
+                  curve: QtMotion.signature,
+                  child: AnimatedOpacity(
+                    opacity: i <= rating ? 1.0 : 0.45,
+                    duration: QtMotion.fast,
+                    child: Icon(
+                      Icons.star,
+                      size: size,
+                      color: QueensTouchColors.gold,
+                    ),
+                  ),
                 ),
               ),
             ),

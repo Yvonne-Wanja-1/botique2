@@ -37,6 +37,9 @@ void main() {
 
   test('returns generic when nothing matches', () {
     expect(p(), ProductPresentation.generic);
-    expect(p(slug: 'misc-mystery', name: 'Gadget 3000'), ProductPresentation.generic);
+    expect(
+      p(slug: 'misc-mystery', name: 'Gadget 3000'),
+      ProductPresentation.generic,
+    );
   });
 }

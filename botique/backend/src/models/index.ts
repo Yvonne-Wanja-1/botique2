@@ -71,7 +71,7 @@ export interface Product {
   createdAt: string;
   updatedAt: string;
 }
-export type ProductRow = Omit<Product, 'variants' | 'images' | 'specifications' | 'categoryId' | 'brandId' | 'basePrice' | 'discountPrice' | 'stockThreshold' | 'rating' | 'reviewCount' | 'soldCount' | 'viewCount' | 'isFeatured' | 'isNewArrival' | 'isBestSeller' | 'isTrending' | 'createdAt' | 'updatedAt'> & {
+export type ProductRow = Omit<Product, 'variants' | 'images' | 'specifications' | 'categoryId' | 'categorySlug' | 'brandId' | 'basePrice' | 'discountPrice' | 'stockThreshold' | 'rating' | 'reviewCount' | 'soldCount' | 'viewCount' | 'isFeatured' | 'isNewArrival' | 'isBestSeller' | 'isTrending' | 'createdAt' | 'updatedAt'> & {
   category_id: string;
   category_slug: string | null;
   brand_id: string;

@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'qts_animation.dart';
 
 /// One-shot staggered entrance: fades in and slides up, with an optional
-/// per-index stagger delay. Runs once on first build.
+/// per-index stagger delay (capped so long grids stay snappy). Runs once on
+/// first build.
 class StaggerReveal extends StatefulWidget {
   const StaggerReveal({
     super.key,
@@ -44,7 +45,7 @@ class _StaggerRevealState extends State<StaggerReveal>
     if (QtMotion.reduceMotion(context)) {
       _controller.value = 1.0;
     } else {
-      Future<void>.delayed(Duration(milliseconds: widget.index * 70), () {
+      Future<void>.delayed(Duration(milliseconds: widget.index.clamp(0, 8) * 70), () {
         if (mounted) _controller.forward();
       });
     }

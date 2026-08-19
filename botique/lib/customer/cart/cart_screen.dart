@@ -19,7 +19,7 @@ class CartScreen extends StatelessWidget {
     final cart = context.watch<CartService>();
 
     return AnimatedSwitcher(
-      duration: QtMotion.normal,
+      duration: QtMotion.reduceMotion(context) ? Duration.zero : QtMotion.normal,
       child: cart.isEmpty
           ? const EmptyState(
               key: ValueKey('cart-empty'),
@@ -44,7 +44,9 @@ class CartScreen extends StatelessWidget {
                         'cart-item-${cart.items[index].product.id}-${cart.items[index].variant?.id}',
                       ),
                       tween: Tween(begin: 0.0, end: 1.0),
-                      duration: QtMotion.normal,
+                      duration: QtMotion.reduceMotion(context)
+                          ? Duration.zero
+                          : QtMotion.normal,
                       curve: QtMotion.signature,
                       builder: (context, v, child) => Opacity(
                         opacity: v,
@@ -82,7 +84,9 @@ class _CartItemTile extends StatelessWidget {
               width: 72,
               height: 72,
               child: ProductImageReveal(
-                imageUrl: item.product.images.isNotEmpty ? item.product.images.first : '',
+                imageUrl: item.product.images.isNotEmpty
+                    ? item.product.images.first
+                    : '',
                 borderRadius: BorderRadius.circular(12),
                 presentation: presentationFor(
                   categorySlug: item.product.categorySlug,
@@ -104,7 +108,10 @@ class _CartItemTile extends StatelessWidget {
                   if (item.variant != null)
                     Text(
                       item.variant!.label,
-                      style: const TextStyle(color: QueensTouchColors.textMuted, fontSize: 12),
+                      style: const TextStyle(
+                        color: QueensTouchColors.textMuted,
+                        fontSize: 12,
+                      ),
                     ),
                   const SizedBox(height: 6),
                   Text(
@@ -126,7 +133,10 @@ class _CartItemTile extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 12),
-                      Text('${item.quantity}', style: const TextStyle(fontWeight: FontWeight.w700)),
+                      Text(
+                        '${item.quantity}',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
                       const SizedBox(width: 12),
                       _QtyButton(
                         icon: Icons.add,
@@ -142,8 +152,12 @@ class _CartItemTile extends StatelessWidget {
               ),
             ),
             IconButton(
-              icon: const Icon(Icons.delete_outline, color: QueensTouchColors.danger),
-              onPressed: () => cart.removeItem(item.product.id, variantId: item.variant?.id),
+              icon: const Icon(
+                Icons.delete_outline,
+                color: QueensTouchColors.danger,
+              ),
+              onPressed: () =>
+                  cart.removeItem(item.product.id, variantId: item.variant?.id),
             ),
           ],
         ),
@@ -206,7 +220,10 @@ class _CartSummary extends StatelessWidget {
               label: 'Shipping',
               value: Text(
                 shipping == 0 ? 'Free' : '\$${shipping.toStringAsFixed(2)}',
-                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
               ),
             ),
             const Divider(height: 20),
@@ -243,7 +260,11 @@ class _CartSummary extends StatelessWidget {
 }
 
 class _SummaryRow extends StatelessWidget {
-  const _SummaryRow({required this.label, required this.value, this.isTotal = false});
+  const _SummaryRow({
+    required this.label,
+    required this.value,
+    this.isTotal = false,
+  });
 
   final String label;
   final Widget value;

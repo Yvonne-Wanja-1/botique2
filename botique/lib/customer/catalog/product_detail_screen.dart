@@ -133,6 +133,23 @@ class _ProductDetailBody extends StatelessWidget {
   final ValueChanged<String?> onShadeSelected;
   final ValueChanged<int> onQuantityChanged;
 
+  /// The variant matching every selection (size/color/shade), or null when
+  /// nothing is selected or no variant matches. Passing it makes the cart line
+  /// carry the chosen shade (and size/color).
+  ProductVariant? _selectedVariant(Product product) {
+    if (selectedSize == null && selectedColor == null && selectedShade == null) {
+      return null;
+    }
+    for (final v in product.variants) {
+      if ((selectedSize == null || v.size == selectedSize) &&
+          (selectedColor == null || v.color == selectedColor) &&
+          (selectedShade == null || v.shade == selectedShade)) {
+        return v;
+      }
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final cart = context.watch<CartService>();
@@ -231,7 +248,11 @@ class _ProductDetailBody extends StatelessWidget {
                 label: product.isOutOfStock ? 'Out of Stock' : 'Add to Cart',
                 onPressed: () {
                   if (product.isOutOfStock) return;
-                  cart.addProduct(product, quantity: quantity);
+                  cart.addProduct(
+                    product,
+                    variant: _selectedVariant(product),
+                    quantity: quantity,
+                  );
                   AddToCartFly.show(
                     context,
                     imageUrl: product.images.isNotEmpty ? product.images.first : '',

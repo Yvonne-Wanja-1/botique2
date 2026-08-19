@@ -55,8 +55,10 @@ ProductPresentation presentationFor({
 
   ProductPresentation? byName(String n) {
     if (n.isEmpty) return null;
-    final tokens =
-        n.split(RegExp(r'[^a-z]+')).where((t) => t.isNotEmpty).toList();
+    final tokens = n
+        .split(RegExp(r'[^a-z]+'))
+        .where((t) => t.isNotEmpty)
+        .toList();
     final exact = <String, ProductPresentation>{
       'lip': ProductPresentation.lip,
       'lipstick': ProductPresentation.lip,

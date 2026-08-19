@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../core/theme/theme.dart';
@@ -58,7 +60,7 @@ class _WishlistHeartState extends State<WishlistHeart>
       child: AnimatedBuilder(
         animation: _controller,
         builder: (context, _) {
-          final bounce = 1.0 + 0.25 * (1 - (1 - _controller.value) * (1 - _controller.value));
+          final bounce = 1.0 + 0.25 * math.sin(math.pi * _controller.value);
           return Stack(
             alignment: Alignment.center,
             children: [

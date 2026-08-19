@@ -42,7 +42,9 @@ class ProductCard extends StatelessWidget {
               fit: StackFit.expand,
               children: [
                 ProductImageReveal(
-                  imageUrl: product.images.isNotEmpty ? product.images.first : '',
+                  imageUrl: product.images.isNotEmpty
+                      ? product.images.first
+                      : '',
                   heroTag: heroTag,
                   presentation: presentation,
                   semanticLabel: product.name,
@@ -53,7 +55,10 @@ class ProductCard extends StatelessWidget {
                     top: 8,
                     left: 8,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: QueensTouchColors.danger,
                         borderRadius: BorderRadius.circular(20),
@@ -73,7 +78,10 @@ class ProductCard extends StatelessWidget {
                     top: 8,
                     right: 8,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: QueensTouchColors.plum,
                         borderRadius: BorderRadius.circular(20),
@@ -105,9 +113,9 @@ class ProductCard extends StatelessWidget {
                   product.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 2),
                 Row(
@@ -136,7 +144,11 @@ class ProductCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      const Icon(Icons.star, size: 14, color: QueensTouchColors.gold),
+                      const Icon(
+                        Icons.star,
+                        size: 14,
+                        color: QueensTouchColors.gold,
+                      ),
                       const SizedBox(width: 2),
                       Text(
                         product.rating.toStringAsFixed(1),

@@ -48,7 +48,8 @@ class _CustomerShellState extends State<CustomerShell> {
             builder: (context, ns, _) {
               return IconButton(
                 icon: AnimatedSwitcher(
-                  duration: QtMotion.fast,
+                  duration:
+                      QtMotion.reduceMotion(context) ? Duration.zero : QtMotion.fast,
                   child: Badge(
                     key: ValueKey(ns.unreadCount),
                     isLabelVisible: ns.unreadCount > 0,

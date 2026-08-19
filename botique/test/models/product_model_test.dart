@@ -5,7 +5,7 @@ void main() {
   test('Product.fromJson parses categorySlug', () {
     final product = Product.fromJson({
       'id': 'p1',
-      'name': 'RosÃ© Dress',
+      'name': 'Rosé Dress',
       'description': 'd',
       'basePrice': 10,
       'categoryId': '00000000-0000-0000-0000-000000000402',

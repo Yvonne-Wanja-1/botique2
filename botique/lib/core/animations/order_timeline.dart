@@ -72,12 +72,16 @@ class OrderTimeline extends StatelessWidget {
                     top: 14,
                     width: (_reached - 1) / (_steps.length - 1) * constraints.maxWidth,
                     child: TweenAnimationBuilder<double>(
-                      tween: Tween(end: 1.0),
+                      tween: Tween(begin: 0.0, end: 1.0),
                       duration: QtMotion.normal,
                       curve: QtMotion.signature,
-                      builder: (context, v, _) => Container(
-                        height: 3,
-                        color: QueensTouchColors.plum,
+                      builder: (context, v, _) => FractionallySizedBox(
+                        alignment: Alignment.centerLeft,
+                        widthFactor: v,
+                        child: Container(
+                          height: 3,
+                          color: QueensTouchColors.plum,
+                        ),
                       ),
                     ),
                   ),

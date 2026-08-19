@@ -519,7 +519,9 @@ class NotificationsScreen extends StatelessWidget {
                 return TweenAnimationBuilder<double>(
                   key: ValueKey('notification-${n.id}'),
                   tween: Tween(begin: 0.0, end: 1.0),
-                  duration: QtMotion.normal,
+                  duration: QtMotion.reduceMotion(context)
+                      ? Duration.zero
+                      : QtMotion.normal,
                   curve: QtMotion.signature,
                   builder: (context, v, child) => Opacity(
                     opacity: v,

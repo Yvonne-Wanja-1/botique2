@@ -260,7 +260,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
           ),
         Expanded(
           child: AnimatedSwitcher(
-            duration: QtMotion.normal,
+            duration: QtMotion.reduceMotion(context) ? Duration.zero : QtMotion.normal,
             child: KeyedSubtree(
               key: ValueKey('$_selected-$_rangeIndex'),
               child: _buildBody(),

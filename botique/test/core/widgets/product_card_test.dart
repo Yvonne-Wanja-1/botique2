@@ -8,7 +8,9 @@ import 'package:botique/models/product.dart';
 import 'package:botique/services/wishlist_service.dart';
 
 void main() {
-  testWidgets('product card shows name, price and image placeholder', (tester) async {
+  testWidgets('product card shows name, price and image placeholder', (
+    tester,
+  ) async {
     final product = Product(
       id: 'p1',
       name: 'Rosé Dress',
@@ -18,14 +20,20 @@ void main() {
       brandId: 'b1',
       images: const [],
     );
-    await tester.pumpWidget(ChangeNotifierProvider(
-      create: (_) => WishlistService(MockWishlistRepository()),
-      child: MaterialApp(
-        home: Scaffold(
-          body: SizedBox(width: 150, height: 250, child: ProductCard(product: product)),
+    await tester.pumpWidget(
+      ChangeNotifierProvider(
+        create: (_) => WishlistService(MockWishlistRepository()),
+        child: MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 150,
+              height: 250,
+              child: ProductCard(product: product),
+            ),
+          ),
         ),
       ),
-    ));
+    );
     await tester.pumpAndSettle();
     expect(find.text('Rosé Dress'), findsOneWidget);
     expect(find.text('\$50.00'), findsOneWidget);
