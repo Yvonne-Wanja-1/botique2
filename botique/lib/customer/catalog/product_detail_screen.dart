@@ -2,8 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/animations/add_to_cart_fly.dart';
+import '../../core/animations/product_image_reveal.dart';
+import '../../core/animations/product_presentation.dart';
+import '../../core/animations/qts_animation.dart';
+import '../../core/animations/shade_selector.dart';
+import '../../core/animations/wishlist_heart.dart';
 import '../../core/theme/theme.dart';
-import '../../core/utils/image_url.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/loading_view.dart';
 import '../../data/repositories/review_repository.dart';
@@ -195,12 +200,14 @@ class _ProductDetailBody extends StatelessWidget {
           selected: selectedColor,
           onSelect: onColorSelected,
         ),
-        if (shades.isNotEmpty) _VariantSection(
-          label: 'Select Shade',
-          options: shades,
-          selected: selectedShade,
-          onSelect: onShadeSelected,
-        ),
+        if (shades.isNotEmpty) ...[
+          ShadeSelector(
+            shades: shades,
+            selected: selectedShade,
+            onSelected: onShadeSelected,
+          ),
+          const SizedBox(height: 16),
+        ],
         const SizedBox(height: 16),
         Row(
           children: [
@@ -214,17 +221,17 @@ class _ProductDetailBody extends StatelessWidget {
           children: [
             Expanded(
               flex: 3,
-              child: ElevatedButton.icon(
-                onPressed: product.isOutOfStock
-                    ? null
-                    : () {
-                        cart.addProduct(product, quantity: quantity);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Added to cart')),
-                        );
-                      },
-                icon: const Icon(Icons.add_shopping_cart),
-                label: Text(product.isOutOfStock ? 'Out of Stock' : 'Add to Cart'),
+              child: AddToCartButton(
+                enabled: !product.isOutOfStock,
+                label: product.isOutOfStock ? 'Out of Stock' : 'Add to Cart',
+                onPressed: () {
+                  if (product.isOutOfStock) return;
+                  cart.addProduct(product, quantity: quantity);
+                  AddToCartFly.show(
+                    context,
+                    imageUrl: product.images.isNotEmpty ? product.images.first : '',
+                  );
+                },
               ),
             ),
             const SizedBox(width: 12),
@@ -239,9 +246,10 @@ class _ProductDetailBody extends StatelessWidget {
                   future: wishlist.contains(product.id),
                   builder: (context, snapshot) {
                     final inWishlist = snapshot.data ?? false;
-                    return Icon(
-                      inWishlist ? Icons.favorite : Icons.favorite_border,
-                      color: inWishlist ? QueensTouchColors.danger : null,
+                    return WishlistHeart(
+                      isSelected: inWishlist,
+                      size: 22,
+                      onPressed: () => wishlist.toggle(product.id),
                     );
                   },
                 ),
@@ -337,47 +345,55 @@ class _GalleryState extends State<_Gallery> {
   Widget build(BuildContext context) {
     final images = widget.product.images;
     if (images.isEmpty) {
-      return _imageContainer(const Center(
-        child: Icon(Icons.checkroom, size: 80, color: QueensTouchColors.plumLight),
-      ));
+      return Hero(
+        tag: 'product-image-${widget.product.id}',
+        child: _imageContainer(
+          const Center(
+            child: Icon(Icons.checkroom, size: 80, color: QueensTouchColors.plumLight),
+          ),
+        ),
+      );
     }
     return Column(
       children: [
-        _imageContainer(
-          Stack(
-            fit: StackFit.expand,
-            children: [
-              PageView.builder(
-                itemCount: images.length,
-                onPageChanged: (i) => setState(() => _index = i),
-                itemBuilder: (context, i) => ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: Image.network(
-                    resolveImageUrl(images[i]),
+        Hero(
+          tag: 'product-image-${widget.product.id}',
+          child: _imageContainer(
+            Stack(
+              fit: StackFit.expand,
+              children: [
+                PageView.builder(
+                  itemCount: images.length,
+                  onPageChanged: (i) => setState(() => _index = i),
+                  itemBuilder: (context, i) => ProductImageReveal(
+                    imageUrl: images[i],
                     fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => const Center(
-                      child: Icon(Icons.broken_image, size: 56, color: QueensTouchColors.plumLight),
+                    borderRadius: BorderRadius.circular(16),
+                    presentation: presentationFor(
+                      categorySlug: widget.product.categorySlug,
+                      categoryId: widget.product.categoryId,
                     ),
+                    semanticLabel: widget.product.name,
                   ),
                 ),
-              ),
-              if (images.length > 1)
-                Positioned(
-                  top: 12,
-                  right: 12,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.black54,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      '${_index + 1}/${images.length}',
-                      style: const TextStyle(color: Colors.white, fontSize: 12),
+                if (images.length > 1)
+                  Positioned(
+                    top: 12,
+                    right: 12,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.black54,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        '${_index + 1}/${images.length}',
+                        style: const TextStyle(color: Colors.white, fontSize: 12),
+                      ),
                     ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
         if (images.length > 1) ...[
@@ -474,7 +490,14 @@ class _QuantityStepper extends StatelessWidget {
             icon: const Icon(Icons.remove, size: 18),
             onPressed: value > 1 ? () => onChanged(value - 1) : null,
           ),
-          Text('$value', style: const TextStyle(fontWeight: FontWeight.w600)),
+          AnimatedSwitcher(
+            duration: QtMotion.fast,
+            child: Text(
+              '$value',
+              key: ValueKey(value),
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.add, size: 18),
             onPressed: () => onChanged(value + 1),
