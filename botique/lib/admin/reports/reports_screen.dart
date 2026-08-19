@@ -4,6 +4,8 @@ import 'package:file_saver/file_saver.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/animations/animated_counter.dart';
+import '../../core/animations/qts_animation.dart';
 import '../../core/theme/theme.dart';
 import '../../core/utils/currency.dart';
 import '../../core/widgets/dialogs.dart';
@@ -256,7 +258,15 @@ class _ReportsScreenState extends State<ReportsScreen> {
               ),
             ),
           ),
-        Expanded(child: _buildBody()),
+        Expanded(
+          child: AnimatedSwitcher(
+            duration: QtMotion.normal,
+            child: KeyedSubtree(
+              key: ValueKey('$_selected-$_rangeIndex'),
+              child: _buildBody(),
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -304,12 +314,12 @@ class _ReportsScreenState extends State<ReportsScreen> {
       padding: const EdgeInsets.all(16),
       children: [
         _MetricGrid([
-          ('Total Revenue', formatKsh(summary.totalRevenue)),
-          ('Verified Revenue', formatKsh(summary.verifiedRevenue)),
-          ('Total Orders', summary.totalOrders.toString()),
-          ('Outstanding Balance', formatKsh(summary.outstandingBalance)),
-          ('Avg Order Value', formatKsh(summary.avgOrderValue)),
-          ('Pending Orders', summary.pendingOrders.toString()),
+          ('Total Revenue', AnimatedCounter(value: summary.totalRevenue, format: formatKsh)),
+          ('Verified Revenue', AnimatedCounter(value: summary.verifiedRevenue, format: formatKsh)),
+          ('Total Orders', AnimatedCounter(value: summary.totalOrders.toDouble(), format: (v) => v.round().toString())),
+          ('Outstanding Balance', AnimatedCounter(value: summary.outstandingBalance, format: formatKsh)),
+          ('Avg Order Value', AnimatedCounter(value: summary.avgOrderValue, format: formatKsh)),
+          ('Pending Orders', AnimatedCounter(value: summary.pendingOrders.toDouble(), format: (v) => v.round().toString())),
         ]),
         const SizedBox(height: 16),
         _SectionCard(
@@ -584,10 +594,14 @@ class _NoData extends StatelessWidget {
 class _MetricGrid extends StatelessWidget {
   const _MetricGrid(this.metrics);
 
-  final List<(String, String)> metrics;
+  final List<(String, Object)> metrics;
 
   @override
   Widget build(BuildContext context) {
+    final valueStyle = Theme.of(context).textTheme.titleLarge?.copyWith(
+          fontWeight: FontWeight.w700,
+          color: QueensTouchColors.plum,
+        );
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -607,12 +621,9 @@ class _MetricGrid extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(
-                  value,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: QueensTouchColors.plum,
-                      ),
+                DefaultTextStyle(
+                  style: valueStyle ?? const TextStyle(),
+                  child: value is Widget ? value : Text(value.toString()),
                 ),
                 const SizedBox(height: 4),
                 Text(
