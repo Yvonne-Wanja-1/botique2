@@ -37,5 +37,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Mon'), findsOneWidget);
     expect(find.text('Tue'), findsOneWidget);
+    final firstHeight = tester.getSize(find.byType(FractionallySizedBox).at(0)).height;
+    final secondHeight = tester.getSize(find.byType(FractionallySizedBox).at(1)).height;
+    expect(firstHeight, lessThan(secondHeight));
   });
 }

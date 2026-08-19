@@ -23,6 +23,7 @@ class AnimatedBarChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final maxValue = values.isEmpty ? 1.0 : values.reduce((a, b) => a > b ? a : b);
     return SizedBox(
       height: height,
       child: Row(
@@ -47,7 +48,7 @@ class AnimatedBarChart extends StatelessWidget {
                           duration: QtMotion.slow,
                           curve: QtMotion.signature,
                           builder: (context, v, _) => FractionallySizedBox(
-                            heightFactor: v,
+                            heightFactor: v * (values[i] / maxValue),
                             child: Container(
                               decoration: BoxDecoration(
                                 color: i == values.length - 1
