@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/theme/theme.dart';
 import '../../core/theme/responsive.dart';
+import '../../core/animations/stagger_reveal.dart';
 import '../../core/widgets/product_card.dart';
 import '../../core/widgets/loading_view.dart';
 import '../../core/widgets/empty_state.dart';
@@ -111,7 +112,10 @@ class _CatalogScreenState extends State<CatalogScreen> {
                           title: 'No products found',
                           message: 'Try adjusting your filters or search terms.',
                         )
-                      : _ProductGrid(products: _result!.products),
+                      : _ProductGrid(
+                          products: _result!.products,
+                          gridKey: ValueKey('grid-$_sort-${_filter.hashCode}'),
+                        ),
                 ),
               ],
             ),
@@ -153,14 +157,16 @@ class _SortBar extends StatelessWidget {
 }
 
 class _ProductGrid extends StatelessWidget {
-  const _ProductGrid({required this.products});
+  const _ProductGrid({required this.products, required this.gridKey});
 
   final List<Product> products;
+  final Key gridKey;
 
   @override
   Widget build(BuildContext context) {
     final columns = Responsive.gridColumns(context);
     return GridView.builder(
+      key: gridKey,
       padding: const EdgeInsets.all(16),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: columns,
@@ -169,7 +175,13 @@ class _ProductGrid extends StatelessWidget {
         childAspectRatio: 0.7,
       ),
       itemCount: products.length,
-      itemBuilder: (context, index) => ProductCard(product: products[index]),
+      itemBuilder: (context, index) => StaggerReveal(
+        index: index,
+        child: ProductCard(
+          product: products[index],
+          heroTag: 'catalog-${products[index].id}',
+        ),
+      ),
     );
   }
 }
