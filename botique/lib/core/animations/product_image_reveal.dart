@@ -43,6 +43,8 @@ class _ProductImageRevealState extends State<ProductImageReveal> {
   }
 
   void _markLoaded() {
+    // `!loaded` is load-bearing: it guards against the same-load double fire
+    // from the sync (wasSynchronouslyLoaded) and async (frame != null) paths.
     if (mounted && !_loaded) setState(() => _loaded = true);
   }
 
@@ -98,10 +100,7 @@ class _ProductImageRevealState extends State<ProductImageReveal> {
             );
           },
           loadingBuilder: (context, child, event) {
-            if (event == null) {
-              WidgetsBinding.instance.addPostFrameCallback((_) => _markLoaded());
-              return child;
-            }
+            if (event == null) return child;
             return const _SkeletonSurface();
           },
           errorBuilder: (context, error, stackTrace) =>
