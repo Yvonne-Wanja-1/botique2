@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/animations/fashion_beauty_reveal.dart';
 import '../../core/theme/theme.dart';
 import '../../core/utils/currency.dart';
 import '../../core/widgets/dialogs.dart';
@@ -85,19 +86,26 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            Text('Contact & Delivery', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+            Text(
+              'Contact & Delivery',
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            ),
             const SizedBox(height: 12),
             TextFormField(
               controller: _nameController,
               decoration: const InputDecoration(labelText: 'Full name'),
-              validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
+              validator: (v) =>
+                  v == null || v.trim().isEmpty ? 'Required' : null,
             ),
             const SizedBox(height: 12),
             TextFormField(
               controller: _phoneController,
               decoration: const InputDecoration(labelText: 'Phone number'),
               keyboardType: TextInputType.phone,
-              validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
+              validator: (v) =>
+                  v == null || v.trim().isEmpty ? 'Required' : null,
             ),
             const SizedBox(height: 12),
             TextFormField(
@@ -111,10 +119,16 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             TextFormField(
               controller: _addressController,
               decoration: const InputDecoration(labelText: 'Delivery address'),
-              validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
+              validator: (v) =>
+                  v == null || v.trim().isEmpty ? 'Required' : null,
             ),
             const SizedBox(height: 24),
-            Text('Promo Code', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+            Text(
+              'Promo Code',
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            ),
             const SizedBox(height: 8),
             Row(
               children: [
@@ -125,14 +139,21 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                OutlinedButton(onPressed: _applyPromo, child: const Text('Apply')),
+                OutlinedButton(
+                  onPressed: _applyPromo,
+                  child: const Text('Apply'),
+                ),
               ],
             ),
             if (_appliedPromo != null) ...[
               const SizedBox(height: 8),
               Row(
                 children: [
-                  const Icon(Icons.check_circle, color: QueensTouchColors.success, size: 18),
+                  const Icon(
+                    Icons.check_circle,
+                    color: QueensTouchColors.success,
+                    size: 18,
+                  ),
                   const SizedBox(width: 6),
                   Text(
                     '${_appliedPromo!.code} applied',
@@ -150,7 +171,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               ),
             ],
             const SizedBox(height: 24),
-            Text('Order Review', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+            Text(
+              'Order Review',
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            ),
             const SizedBox(height: 8),
             Card(
               child: Padding(
@@ -172,7 +198,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                             ),
                             Text(
                               '\$${item.lineTotal.toStringAsFixed(2)}',
-                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ],
                         ),
@@ -181,15 +210,29 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     _Row('Subtotal', '\$${_subtotal.toStringAsFixed(2)}'),
                     if (_discount > 0)
                       _Row('Discount', '-\$${_discount.toStringAsFixed(2)}'),
-                    _Row('Shipping', shipping == 0 ? 'Free' : '\$${shipping.toStringAsFixed(2)}'),
+                    _Row(
+                      'Shipping',
+                      shipping == 0
+                          ? 'Free'
+                          : '\$${shipping.toStringAsFixed(2)}',
+                    ),
                     const Divider(height: 16),
-                    _Row('Total', '\$${total.toStringAsFixed(2)}', isTotal: true),
+                    _Row(
+                      'Total',
+                      '\$${total.toStringAsFixed(2)}',
+                      isTotal: true,
+                    ),
                   ],
                 ),
               ),
             ),
             const SizedBox(height: 24),
-            Text('Payment', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+            Text(
+              'Payment',
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            ),
             const SizedBox(height: 8),
             for (final method in PaymentMethod.values)
               RadioListTile<PaymentMethod>(
@@ -202,7 +245,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             const SizedBox(height: 8),
             SwitchListTile(
               title: const Text('Request installment payment'),
-              subtitle: const Text('Pay in monthly installments (subject to approval)'),
+              subtitle: const Text(
+                'Pay in monthly installments (subject to approval)',
+              ),
               value: _installmentRequested,
               onChanged: (v) => setState(() => _installmentRequested = v),
             ),
@@ -215,7 +260,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     ? const SizedBox(
                         height: 20,
                         width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
                       )
                     : const Text('Place Order'),
               ),
@@ -260,19 +308,17 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     if (!mounted) return;
     setState(() => _processing = false);
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (_) => _ConfirmationScreen(order: order),
-      ),
+      MaterialPageRoute(builder: (_) => _ConfirmationScreen(order: order)),
     );
   }
 
   String _methodLabel(PaymentMethod m) => switch (m) {
-        PaymentMethod.cashOnDelivery => 'Cash on Delivery',
-        PaymentMethod.bankTransfer => 'Bank Transfer',
-        PaymentMethod.paybill => 'Paybill',
-        PaymentMethod.card => 'Card Payment',
-        PaymentMethod.installment => 'Installment',
-      };
+    PaymentMethod.cashOnDelivery => 'Cash on Delivery',
+    PaymentMethod.bankTransfer => 'Bank Transfer',
+    PaymentMethod.paybill => 'Paybill',
+    PaymentMethod.card => 'Card Payment',
+    PaymentMethod.installment => 'Installment',
+  };
 }
 
 class _Row extends StatelessWidget {
@@ -316,83 +362,126 @@ class _ConfirmationScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Order Confirmed'), automaticallyImplyLeading: false),
+      appBar: AppBar(
+        title: const Text('Order Confirmed'),
+        automaticallyImplyLeading: false,
+      ),
       body: Padding(
         padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.check_circle, color: QueensTouchColors.success, size: 80),
-            const SizedBox(height: 16),
-            Text(
-              'Thank you, ${order.customerName}!',
-              style: Theme.of(context).textTheme.headlineSmall,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Your order has been placed successfully.',
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    Text('Order Number', style: const TextStyle(color: QueensTouchColors.textMuted)),
-                    const SizedBox(height: 4),
-                    Text(
-                      order.orderNumber,
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18, color: QueensTouchColors.plum),
-                    ),
-                    const Divider(height: 24),
-                    Text('Order Total', style: const TextStyle(color: QueensTouchColors.textMuted)),
-                    const SizedBox(height: 4),
-                    Text(
-                      '\$${order.total.toStringAsFixed(2)}',
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 20),
-                    ),
-                    if (order.installmentRequested) ...[
-                      const Divider(height: 24),
-                      const Text('Installment requested', style: TextStyle(color: QueensTouchColors.warning)),
-                      const Text('Awaiting approval', style: TextStyle(color: QueensTouchColors.warning, fontSize: 13)),
-                    ],
-                    if (order.paymentMethod == PaymentMethod.paybill ||
-                        order.paymentMethod == PaymentMethod.bankTransfer) ...[
-                      const Divider(height: 24),
-                      const Text('How to pay', style: TextStyle(fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 8),
-                      const _Row('Paybill', '222111'),
-                      const _Row('Account', '65727'),
-                      _Row('Total', formatKsh(order.total), isTotal: true),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => SubmitPaymentScreen(
-                                orderId: order.id,
-                                orderNumber: order.orderNumber,
-                                amount: order.total,
-                              ),
-                            ),
-                          ),
-                          child: const Text('Pay'),
+        child: BeautyReveal(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.check_circle,
+                color: QueensTouchColors.success,
+                size: 80,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Thank you, ${order.customerName}!',
+                style: QueensTouchTheme.brandSerif(
+                  fontSize: 26,
+                  weight: FontWeight.w700,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Your order has been placed successfully.',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      Text(
+                        'Order Number',
+                        style: const TextStyle(
+                          color: QueensTouchColors.textMuted,
                         ),
                       ),
+                      const SizedBox(height: 4),
+                      Text(
+                        order.orderNumber,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 18,
+                          color: QueensTouchColors.plum,
+                        ),
+                      ),
+                      const Divider(height: 24),
+                      Text(
+                        'Order Total',
+                        style: const TextStyle(
+                          color: QueensTouchColors.textMuted,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '\$${order.total.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 20,
+                        ),
+                      ),
+                      if (order.installmentRequested) ...[
+                        const Divider(height: 24),
+                        const Text(
+                          'Installment requested',
+                          style: TextStyle(color: QueensTouchColors.warning),
+                        ),
+                        const Text(
+                          'Awaiting approval',
+                          style: TextStyle(
+                            color: QueensTouchColors.warning,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                      if (order.paymentMethod == PaymentMethod.paybill ||
+                          order.paymentMethod ==
+                              PaymentMethod.bankTransfer) ...[
+                        const Divider(height: 24),
+                        const Text(
+                          'How to pay',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 8),
+                        const _Row('Paybill', '222111'),
+                        const _Row('Account', '65727'),
+                        _Row('Total', formatKsh(order.total), isTotal: true),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => SubmitPaymentScreen(
+                                  orderId: order.id,
+                                  orderNumber: order.orderNumber,
+                                  amount: order.total,
+                                ),
+                              ),
+                            ),
+                            child: const Text('Pay'),
+                          ),
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
-              child: const Text('Continue Shopping'),
-            ),
-          ],
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: () =>
+                    Navigator.of(context).popUntil((route) => route.isFirst),
+                child: const Text('Continue Shopping'),
+              ),
+            ],
+          ),
         ),
       ),
     );
