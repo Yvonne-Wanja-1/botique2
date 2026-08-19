@@ -70,7 +70,12 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         future: _productFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState != ConnectionState.done) {
-            return const LoadingView();
+            return Column(
+              children: [
+                _GalleryHeroShell(productId: widget.productId),
+                const Expanded(child: LoadingView()),
+              ],
+            );
           }
           final product = snapshot.data;
           if (product == null) {
@@ -327,6 +332,38 @@ class _RatingSummary extends StatelessWidget {
 
   static double _average(List<Review> reviews) =>
       reviews.map((r) => r.rating).reduce((a, b) => a + b) / reviews.length;
+}
+
+/// Renders the gallery destination Hero on the first frame, before the
+/// product loads, so the catalog-to-detail hero flight has a destination.
+class _GalleryHeroShell extends StatelessWidget {
+  const _GalleryHeroShell({required this.productId});
+
+  final String productId;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Hero(
+        tag: 'product-image-$productId',
+        child: Container(
+          height: 320,
+          decoration: BoxDecoration(
+            color: QueensTouchColors.blushLight,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: const Center(
+            child: Icon(
+              Icons.image_outlined,
+              size: 48,
+              color: QueensTouchColors.plumLight,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _Gallery extends StatefulWidget {
