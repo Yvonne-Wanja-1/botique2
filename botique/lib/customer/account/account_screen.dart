@@ -6,6 +6,7 @@ import '../../core/theme/theme.dart';
 import '../../core/utils/currency.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/loading_view.dart';
+import '../../core/animations/qts_animation.dart';
 import '../../data/repositories/commerce_repository.dart';
 import '../../models/notification.dart';
 import '../../models/order.dart';
@@ -93,6 +94,7 @@ class AccountScreen extends StatelessWidget {
             title: const Text('Log Out', style: TextStyle(color: QueensTouchColors.danger)),
             onTap: () async {
               await auth.logout();
+              if (!context.mounted) return;
               context.go('/login');
             },
           ),
@@ -511,24 +513,39 @@ class NotificationsScreen extends StatelessWidget {
           : ListView.separated(
               padding: const EdgeInsets.all(16),
               itemCount: ns.notifications.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              separatorBuilder: (_, _) => const SizedBox(height: 8),
               itemBuilder: (context, index) {
                 final n = ns.notifications[index];
-                return Card(
-                  child: ListTile(
-                    leading: Icon(
-                      _typeIcon(n.type),
-                      color: QueensTouchColors.plum,
+                return TweenAnimationBuilder<double>(
+                  key: ValueKey('notification-${n.id}'),
+                  tween: Tween(begin: 0.0, end: 1.0),
+                  duration: QtMotion.reduceMotion(context)
+                      ? Duration.zero
+                      : QtMotion.normal,
+                  curve: QtMotion.signature,
+                  builder: (context, v, child) => Opacity(
+                    opacity: v,
+                    child: Transform.translate(
+                      offset: Offset(0, 10 * (1 - v)),
+                      child: child,
                     ),
-                    title: Text(
-                      n.title,
-                      style: TextStyle(
-                        fontWeight: n.isRead ? FontWeight.w400 : FontWeight.w700,
+                  ),
+                  child: Card(
+                    child: ListTile(
+                      leading: Icon(
+                        _typeIcon(n.type),
+                        color: QueensTouchColors.plum,
                       ),
+                      title: Text(
+                        n.title,
+                        style: TextStyle(
+                          fontWeight: n.isRead ? FontWeight.w400 : FontWeight.w700,
+                        ),
+                      ),
+                      subtitle: Text(n.body),
+                      trailing: n.isRead ? null : const Icon(Icons.circle, size: 8, color: QueensTouchColors.plum),
+                      onTap: () => ns.markRead(n.id),
                     ),
-                    subtitle: Text(n.body),
-                    trailing: n.isRead ? null : const Icon(Icons.circle, size: 8, color: QueensTouchColors.plum),
-                    onTap: () => ns.markRead(n.id),
                   ),
                 );
               },

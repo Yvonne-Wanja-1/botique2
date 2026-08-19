@@ -51,6 +51,7 @@ class LoginScreen extends StatelessWidget {
                             account: account,
                             onTap: () async {
                               await auth.loginAs(account);
+                              if (!context.mounted) return;
                               if (account.role == Role.customer) {
                                 context.go('/');
                               } else {

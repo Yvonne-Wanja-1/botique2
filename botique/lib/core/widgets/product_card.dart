@@ -1,28 +1,108 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 import '../../models/product.dart';
 import '../../core/theme/theme.dart';
-import '../utils/image_url.dart';
+import '../../services/wishlist_service.dart';
+import '../animations/press_scale.dart';
+import '../animations/product_image_reveal.dart';
+import '../animations/product_presentation.dart';
+import '../animations/wishlist_heart.dart';
 
 class ProductCard extends StatelessWidget {
-  const ProductCard({super.key, required this.product, this.compact = false});
+  const ProductCard({
+    super.key,
+    required this.product,
+    this.compact = false,
+    this.heroTag,
+  });
 
   final Product product;
   final bool compact;
 
+  /// Shared-element tag; only set where the product appears exactly once per
+  /// screen (e.g. the catalog grid). Home rows pass null to avoid duplicate
+  /// Hero tags.
+  final Object? heroTag;
+
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: () {
-        context.push('/product/${product.id}');
-      },
-      borderRadius: BorderRadius.circular(16),
+    final presentation = presentationFor(
+      categorySlug: product.categorySlug,
+      categoryId: product.categoryId,
+    );
+    return PressScale(
+      onTap: () => context.push('/product/${product.id}'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
-            child: _ProductImage(product: product),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                ProductImageReveal(
+                  imageUrl: product.images.isNotEmpty
+                      ? product.images.first
+                      : '',
+                  heroTag: heroTag,
+                  presentation: presentation,
+                  semanticLabel: product.name,
+                  cacheWidth: 640,
+                ),
+                if (product.hasDiscount)
+                  Positioned(
+                    top: 8,
+                    left: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: QueensTouchColors.danger,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        '-${product.discountPercent.toStringAsFixed(0)}%',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                if (product.hasLabel(ProductLabel.newArrival))
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: QueensTouchColors.plum,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Text(
+                        'NEW',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                Positioned(
+                  right: 6,
+                  bottom: 6,
+                  child: _CardWishlist(productId: product.id),
+                ),
+              ],
+            ),
           ),
           Padding(
             padding: const EdgeInsets.all(8),
@@ -33,9 +113,9 @@ class ProductCard extends StatelessWidget {
                   product.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 2),
                 Row(
@@ -64,7 +144,11 @@ class ProductCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      const Icon(Icons.star, size: 14, color: QueensTouchColors.gold),
+                      const Icon(
+                        Icons.star,
+                        size: 14,
+                        color: QueensTouchColors.gold,
+                      ),
                       const SizedBox(width: 2),
                       Text(
                         product.rating.toStringAsFixed(1),
@@ -82,86 +166,31 @@ class ProductCard extends StatelessWidget {
   }
 }
 
-class _ProductImage extends StatelessWidget {
-  const _ProductImage({required this.product});
+class _CardWishlist extends StatelessWidget {
+  const _CardWishlist({required this.productId});
 
-  final Product product;
+  final String productId;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: QueensTouchColors.blushLight,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          if (product.images.isNotEmpty)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: Image.network(
-                resolveImageUrl(product.images.first),
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => _placeholder(),
-              ),
-            )
-          else
-            _placeholder(),
-          if (product.hasDiscount)
-            Positioned(
-              top: 8,
-              left: 8,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: QueensTouchColors.danger,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  '-${product.discountPercent.toStringAsFixed(0)}%',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
+    final wishlist = context.watch<WishlistService>();
+    return FutureBuilder<bool>(
+      future: wishlist.contains(productId),
+      builder: (context, snapshot) {
+        final selected = snapshot.data ?? false;
+        return Material(
+          color: Colors.white.withValues(alpha: 0.85),
+          shape: const CircleBorder(),
+          child: Padding(
+            padding: const EdgeInsets.all(4),
+            child: WishlistHeart(
+              isSelected: selected,
+              size: 20,
+              onPressed: () => wishlist.toggle(productId),
             ),
-          if (product.hasLabel(ProductLabel.newArrival))
-            Positioned(
-              top: 8,
-              right: 8,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: QueensTouchColors.plum,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Text(
-                  'NEW',
-                  style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _placeholder() {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.checkroom, size: 40, color: QueensTouchColors.plumLight.withValues(alpha: 0.5)),
-          const SizedBox(height: 4),
-          Text(
-            'No image yet',
-            style: TextStyle(color: QueensTouchColors.plumLight.withValues(alpha: 0.5), fontSize: 11),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

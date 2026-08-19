@@ -1,13 +1,11 @@
 import '../../api/api_client.dart';
 import '../../../models/cart.dart';
-import '../../../models/product.dart';
 import '../commerce_repository.dart';
 
 class ApiCartRepository implements CartRepository {
   ApiCartRepository(this._client);
 
   final ApiClient _client;
-  List<CartItem> _cache = [];
   final Map<String, String> _backendIds = {};
 
   @override
@@ -21,7 +19,6 @@ class ApiCartRepository implements CartRepository {
       _backendIds['$productId|$variantId'] = e['id'] as String? ?? '';
     }
     final items = rawItems.map((e) => CartItem.fromJson(e as Map<String, dynamic>)).toList();
-    _cache = items;
     return items;
   }
 
@@ -54,7 +51,6 @@ class ApiCartRepository implements CartRepository {
   @override
   Future<void> clear() async {
     await _client.delete('/api/cart');
-    _cache = [];
     _backendIds.clear();
   }
 

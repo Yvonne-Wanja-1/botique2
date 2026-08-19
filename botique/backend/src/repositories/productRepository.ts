@@ -52,12 +52,12 @@ export interface CreateProductInput {
 }
 
 const ORDER_BY: Record<NonNullable<ProductSearchParams['sort']>, string> = {
-  newest: 'created_at DESC',
-  price_low_high: 'COALESCE(discount_price, base_price) ASC',
-  price_high_low: 'COALESCE(discount_price, base_price) DESC',
-  best_selling: 'sold_count DESC',
-  best_rated: 'rating DESC',
-  discount: 'CASE WHEN discount_price IS NULL THEN 0 ELSE (base_price - discount_price) END DESC',
+  newest: 'p.created_at DESC',
+  price_low_high: 'COALESCE(p.discount_price, p.base_price) ASC',
+  price_high_low: 'COALESCE(p.discount_price, p.base_price) DESC',
+  best_selling: 'p.sold_count DESC',
+  best_rated: 'p.rating DESC',
+  discount: 'CASE WHEN p.discount_price IS NULL THEN 0 ELSE (p.base_price - p.discount_price) END DESC',
 };
 
 function mapProductRow(row: ProductRow): Product {
@@ -67,6 +67,7 @@ function mapProductRow(row: ProductRow): Product {
     slug: String(row.slug),
     description: String(row.description),
     categoryId: String(row.category_id),
+    categorySlug: String(row.category_slug ?? ''),
     brandId: String(row.brand_id),
     basePrice: Number(row.base_price),
     discountPrice: row.discount_price === null ? null : Number(row.discount_price),
@@ -162,7 +163,10 @@ export class ProductRepository {
       values,
     );
     const dataRes = await this.pool.query(
-      `SELECT p.* FROM products p ${whereClause} ORDER BY ${ORDER_BY[sort]} LIMIT $${values.length + 1} OFFSET $${values.length + 2}`,
+      `SELECT p.*, c.slug AS category_slug
+       FROM products p
+       LEFT JOIN categories c ON c.id = p.category_id
+       ${whereClause} ORDER BY ${ORDER_BY[sort]} LIMIT $${values.length + 1} OFFSET $${values.length + 2}`,
       [...values, pageSize, offset],
     );
 
@@ -209,7 +213,13 @@ export class ProductRepository {
   }
 
   async findById(id: string): Promise<Product | null> {
-    const res = await this.pool.query('SELECT * FROM products WHERE id = $1', [id]);
+    const res = await this.pool.query(
+      `SELECT p.*, c.slug AS category_slug
+       FROM products p
+       LEFT JOIN categories c ON c.id = p.category_id
+       WHERE p.id = $1`,
+      [id],
+    );
     if (!res.rows.length) return null;
     const product = mapProductRow(res.rows[0]);
     const varRes = await this.pool.query(

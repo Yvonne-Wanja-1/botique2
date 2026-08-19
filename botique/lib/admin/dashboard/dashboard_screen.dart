@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/animations/animated_bar_chart.dart';
+import '../../core/animations/animated_counter.dart';
 import '../../core/theme/theme.dart';
 import '../../core/theme/responsive.dart';
 import '../../core/utils/currency.dart';
@@ -97,14 +99,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildBody(_DashboardData data) {
     final sales = data.sales;
     final statCards = [
-      StatCard(label: 'Total Revenue', value: formatKsh(sales.totalRevenue), icon: Icons.attach_money, color: QueensTouchColors.success),
-      StatCard(label: "Today's Sales", value: formatKsh(sales.todayRevenue), icon: Icons.today, color: QueensTouchColors.plum),
-      StatCard(label: 'Total Orders', value: '${sales.totalOrders}', icon: Icons.receipt_long, color: Colors.blue),
-      StatCard(label: 'Total Customers', value: '${data.customers.totalCustomers}', icon: Icons.people, color: QueensTouchColors.warning),
-      StatCard(label: 'Total Products', value: '${data.inventory.totalProducts}', icon: Icons.inventory_2, color: QueensTouchColors.gold),
-      StatCard(label: 'Pending Orders', value: '${sales.pendingOrders}', icon: Icons.pending_actions, color: QueensTouchColors.warning),
-      StatCard(label: 'Low Stock', value: '${data.inventory.lowStock}', icon: Icons.warning_amber, color: QueensTouchColors.danger),
-      StatCard(label: 'Out of Stock', value: '${data.inventory.outOfStock}', icon: Icons.block, color: QueensTouchColors.danger),
+      StatCard(
+        label: 'Total Revenue',
+        value: sales.totalRevenue,
+        format: formatKsh,
+        icon: Icons.attach_money,
+        color: QueensTouchColors.success,
+      ),
+      StatCard(label: "Today's Sales", value: sales.todayRevenue, format: formatKsh, icon: Icons.today, color: QueensTouchColors.plum),
+      StatCard(label: 'Total Orders', value: sales.totalOrders.toDouble(), format: (v) => v.round().toString(), icon: Icons.receipt_long, color: Colors.blue),
+      StatCard(label: 'Total Customers', value: data.customers.totalCustomers.toDouble(), format: (v) => v.round().toString(), icon: Icons.people, color: QueensTouchColors.warning),
+      StatCard(label: 'Total Products', value: data.inventory.totalProducts.toDouble(), format: (v) => v.round().toString(), icon: Icons.inventory_2, color: QueensTouchColors.gold),
+      StatCard(label: 'Pending Orders', value: sales.pendingOrders.toDouble(), format: (v) => v.round().toString(), icon: Icons.pending_actions, color: QueensTouchColors.warning),
+      StatCard(label: 'Low Stock', value: data.inventory.lowStock.toDouble(), format: (v) => v.round().toString(), icon: Icons.warning_amber, color: QueensTouchColors.danger),
+      StatCard(label: 'Out of Stock', value: data.inventory.outOfStock.toDouble(), format: (v) => v.round().toString(), icon: Icons.block, color: QueensTouchColors.danger),
     ];
 
     final lowStockItems = <String>[
@@ -179,13 +187,15 @@ class StatCard {
   const StatCard({
     required this.label,
     required this.value,
+    required this.format,
     required this.icon,
     required this.color,
     this.trend,
   });
 
   final String label;
-  final String value;
+  final double value;
+  final String Function(double) format;
   final IconData icon;
   final Color color;
   final String? trend;
@@ -277,8 +287,9 @@ class _StatTile extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 12),
-            Text(
-              stat.value,
+            AnimatedCounter(
+              value: stat.value,
+              format: stat.format,
               style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 2),
@@ -374,7 +385,6 @@ class _SalesTrendChart extends StatelessWidget {
   Widget build(BuildContext context) {
     final recent = daily.length > 7 ? daily.sublist(0, 7).reversed.toList() : daily.reversed.toList();
     final trend = recent.map((d) => d.revenue).toList();
-    final max = trend.isEmpty ? 1.0 : trend.reduce((a, b) => a > b ? a : b);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -396,40 +406,11 @@ class _SalesTrendChart extends StatelessWidget {
                 ),
               )
             else
-              SizedBox(
+              AnimatedBarChart(
+                values: trend,
+                labels: [for (var i = 1; i <= trend.length; i++) '$i'],
                 height: 120,
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    for (var i = 0; i < trend.length; i++)
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-                              Expanded(
-                                child: Container(
-                                  height: trend[i] / max * 100,
-                                  decoration: BoxDecoration(
-                                    color: i == trend.length - 1
-                                        ? QueensTouchColors.plum
-                                        : QueensTouchColors.plumLight.withValues(alpha: 0.4),
-                                    borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                '${i + 1}',
-                                style: TextStyle(fontSize: 10, color: QueensTouchColors.textMuted),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
+                barRadius: 4,
               ),
           ],
         ),

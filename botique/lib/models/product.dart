@@ -181,6 +181,7 @@ class Product {
     required this.description,
     required this.price,
     required this.categoryId,
+    this.categorySlug = '',
     required this.brandId,
     required this.images,
     this.discountPrice,
@@ -212,6 +213,7 @@ class Product {
       price: basePrice,
       discountPrice: discountPrice,
       categoryId: json['categoryId'] as String? ?? '',
+      categorySlug: json['categorySlug'] as String? ?? '',
       brandId: json['brandId'] as String? ?? '',
       images: (json['images'] as List?)?.cast<String>() ?? const [],
       variants: (json['variants'] as List?)
@@ -237,6 +239,7 @@ class Product {
   final double price;
   final double? discountPrice;
   final String categoryId;
+  final String categorySlug;
   final String brandId;
   final List<String> images;
   final List<ProductVariant> variants;

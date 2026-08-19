@@ -5,7 +5,6 @@ import '../../core/widgets/dialogs.dart';
 import '../../data/mock/mock_catalog_data.dart';
 import '../../models/audit.dart';
 import '../../models/product.dart';
-import '../../models/user.dart';
 import '../../services/auth_service.dart';
 import 'package:provider/provider.dart';
 

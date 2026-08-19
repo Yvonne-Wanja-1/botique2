@@ -242,6 +242,7 @@ class _OrderCard extends StatelessWidget {
                         );
                         if (ok) {
                           onUpdateStatus(status);
+                          if (!context.mounted) return;
                           showSuccessSnack(context, 'Order marked as ${status.label}');
                         }
                       },

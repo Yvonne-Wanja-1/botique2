@@ -128,7 +128,10 @@ class _StaffScreenState extends State<StaffScreen> {
       message: '${staff.name} will lose access immediately.',
       isDanger: true,
     );
-    if (ok) showSuccessSnack(context, '${staff.name} deactivated');
+    if (ok) {
+      if (!context.mounted) return;
+      showSuccessSnack(context, '${staff.name} deactivated');
+    }
   }
 }
 

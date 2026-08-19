@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/animations/product_image_reveal.dart';
+import '../../core/animations/product_presentation.dart';
+import '../../core/animations/wishlist_heart.dart';
 import '../../core/theme/theme.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../models/cart.dart';
@@ -25,7 +28,7 @@ class WishlistScreen extends StatelessWidget {
     return ListView.separated(
       padding: const EdgeInsets.all(16),
       itemCount: wishlist.items.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      separatorBuilder: (_, _) => const SizedBox(height: 12),
       itemBuilder: (context, index) => _WishlistTile(item: wishlist.items[index]),
     );
   }
@@ -47,14 +50,17 @@ class _WishlistTile extends StatelessWidget {
         padding: const EdgeInsets.all(12),
         child: Row(
           children: [
-            Container(
+            SizedBox(
               width: 72,
               height: 72,
-              decoration: BoxDecoration(
-                color: QueensTouchColors.blushLight,
+              child: ProductImageReveal(
+                imageUrl: product.images.isNotEmpty ? product.images.first : '',
                 borderRadius: BorderRadius.circular(12),
+                presentation: presentationFor(
+                  categorySlug: product.categorySlug,
+                  categoryId: product.categoryId,
+                ),
               ),
-              child: const Icon(Icons.checkroom, color: QueensTouchColors.plumLight),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -78,8 +84,9 @@ class _WishlistTile extends StatelessWidget {
                 ],
               ),
             ),
-            IconButton(
-              icon: const Icon(Icons.delete_outline, color: QueensTouchColors.danger),
+            WishlistHeart(
+              isSelected: true,
+              size: 22,
               onPressed: () => wishlist.remove(product.id),
             ),
             ElevatedButton(

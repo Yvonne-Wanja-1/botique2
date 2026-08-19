@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/animations/animated_star_rating.dart';
 import '../../core/theme/theme.dart';
 import '../../core/widgets/dialogs.dart';
 import '../../data/repositories/review_repository.dart';
@@ -71,19 +72,12 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
           const SizedBox(height: 24),
           Text('Your rating', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              for (var i = 1; i <= 5; i++)
-                IconButton(
-                  onPressed: _submitting ? null : () => setState(() => _rating = i),
-                  icon: Icon(
-                    i <= _rating ? Icons.star : Icons.star_border,
-                    size: 40,
-                    color: QueensTouchColors.gold,
-                  ),
-                ),
-            ],
+          Center(
+            child: AnimatedStarRating(
+              rating: _rating,
+              enabled: !_submitting,
+              onChanged: (v) => setState(() => _rating = v),
+            ),
           ),
           const SizedBox(height: 8),
           Center(
