@@ -92,18 +92,19 @@ export class CartRepository {
 
   async addItem(customerId: string, productId: string, variantId: string | null, quantity: number): Promise<CartView> {
     if (quantity < 1) throw new ConflictError('Quantity must be at least 1');
+    const resolvedVariantId = variantId ?? (await this.defaultVariantFor(productId));
     const vres = await this.pool.query(
       `SELECT v.stock_qty
        FROM product_variants v JOIN products p ON p.id = v.product_id
        WHERE v.id = $1 AND v.product_id = $2 AND v.is_active = TRUE AND p.status = 'active'`,
-      [variantId, productId],
+      [resolvedVariantId, productId],
     );
     if (!vres.rows.length) throw new NotFoundError('Variant not found');
     const stock = toNumber(vres.rows[0].stock_qty);
     const cartId = await this.ensureCart(customerId);
     const existing = await this.pool.query(
       'SELECT quantity FROM cart_items WHERE cart_id = $1 AND product_id = $2 AND variant_id = $3',
-      [cartId, productId, variantId],
+      [cartId, productId, resolvedVariantId],
     );
     const newQuantity = quantity + (existing.rows.length ? toNumber(existing.rows[0].quantity) : 0);
     if (newQuantity > stock) throw new ConflictError('Requested quantity exceeds available stock');
@@ -112,9 +113,22 @@ export class CartRepository {
        VALUES ($1,$2,$3,$4,$5)
        ON CONFLICT (cart_id, product_id, variant_id)
        DO UPDATE SET quantity = EXCLUDED.quantity, updated_at = now()`,
-      [randomUUID(), cartId, productId, variantId, newQuantity],
+      [randomUUID(), cartId, productId, resolvedVariantId, newQuantity],
     );
     return this.getCart(customerId);
+  }
+
+  /** The first active, in-stock variant of a product (fallback when the client
+   * adds to cart without selecting a size/color/shade). */
+  private async defaultVariantFor(productId: string): Promise<string | null> {
+    const res = await this.pool.query(
+      `SELECT id FROM product_variants
+       WHERE product_id = $1 AND is_active = TRUE
+       ORDER BY (stock_qty > 0) DESC, size, color, shade
+       LIMIT 1`,
+      [productId],
+    );
+    return res.rows.length ? String(res.rows[0].id) : null;
   }
 
   async updateItemQuantity(customerId: string, itemId: string, quantity: number): Promise<CartView> {

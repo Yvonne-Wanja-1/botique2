@@ -93,7 +93,7 @@ void main() {
   group('login', () {
     test('stores the token and user and authenticates the client', () async {
       final mock = MockClient((request) async {
-        expect(request.url.path, '/auth/login');
+        expect(request.url.path, '/api/auth/login');
         expect(request.headers['authorization'], isNull);
         final body = jsonDecode(request.body) as Map<String, dynamic>;
         expect(body['email'], 'amara@example.com');
@@ -135,7 +135,7 @@ void main() {
   group('register', () {
     test('creates a customer account and logs the user in', () async {
       final mock = MockClient((request) async {
-        expect(request.url.path, '/auth/register');
+        expect(request.url.path, '/api/auth/register');
         final body = jsonDecode(request.body) as Map<String, dynamic>;
         expect(body['fullName'], 'Ngozi Eze');
         expect(body['role'], isNull);
@@ -158,7 +158,7 @@ void main() {
   group('logout', () {
     test('clears the local session', () async {
       final mock = MockClient((request) async {
-        expect(request.url.path, '/auth/logout');
+        expect(request.url.path, '/api/auth/logout');
         return http.Response('{"success": true, "data": null}', 200,
             headers: {'content-type': 'application/json'});
       });
