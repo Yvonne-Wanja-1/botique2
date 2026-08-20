@@ -154,6 +154,10 @@ CREATE TABLE cart_items (
 );
 
 CREATE INDEX idx_cart_items_cart ON cart_items(cart_id);
+-- NULL variant_id is treated as distinct by unique indexes, so rows for the
+-- same (cart, product) without a variant could be duplicated. This closes that gap.
+CREATE UNIQUE INDEX idx_cart_items_cart_product_no_variant
+  ON cart_items(cart_id, product_id) WHERE variant_id IS NULL;
 
 CREATE TABLE wishlists (
   id         UUID PRIMARY KEY,
@@ -450,12 +454,12 @@ INSERT INTO role_permissions (role_id, permission_id) VALUES
   ('00000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000104'),
   ('00000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000101');
 
-INSERT INTO users (id, email, phone, full_name, role_id) VALUES
-  ('00000000-0000-0000-0000-000000000201', 'amara@example.com', '+234 801 234 5678', 'Amara Okafor', '00000000-0000-0000-0000-000000000005'),
-  ('00000000-0000-0000-0000-000000000202', 'admin@queenstouch.com', '+234 802 000 0001', 'Queen Ebele', '00000000-0000-0000-0000-000000000001'),
-  ('00000000-0000-0000-0000-000000000203', 'manager@queenstouch.com', '+234 802 000 0002', 'Sarah Mensah', '00000000-0000-0000-0000-000000000002'),
-  ('00000000-0000-0000-0000-000000000204', 'sales@queenstouch.com', '+234 802 000 0003', 'Doris Achebe', '00000000-0000-0000-0000-000000000003'),
-  ('00000000-0000-0000-0000-000000000205', 'inventory@queenstouch.com', '+234 802 000 0004', 'Chidi Nwosu', '00000000-0000-0000-0000-000000000004');
+INSERT INTO users (id, email, phone, full_name, role_id, password_hash) VALUES
+  ('00000000-0000-0000-0000-000000000201', 'amara@example.com', '+234 801 234 5678', 'Amara Okafor', '00000000-0000-0000-0000-000000000005', '$argon2id$v=19$m=65536,p=4,t=3$ssJZsPl5WCXRvAToLl0HiA$ICiY3i0IN2LN+oXmrqeK1rd+j/Xfr3PviNexXdjUidg'),
+  ('00000000-0000-0000-0000-000000000202', 'admin@queenstouch.com', '+234 802 000 0001', 'Queen Ebele', '00000000-0000-0000-0000-000000000001', '$argon2id$v=19$m=65536,p=4,t=3$ssJZsPl5WCXRvAToLl0HiA$ICiY3i0IN2LN+oXmrqeK1rd+j/Xfr3PviNexXdjUidg'),
+  ('00000000-0000-0000-0000-000000000203', 'manager@queenstouch.com', '+234 802 000 0002', 'Sarah Mensah', '00000000-0000-0000-0000-000000000002', '$argon2id$v=19$m=65536,p=4,t=3$ssJZsPl5WCXRvAToLl0HiA$ICiY3i0IN2LN+oXmrqeK1rd+j/Xfr3PviNexXdjUidg'),
+  ('00000000-0000-0000-0000-000000000204', 'sales@queenstouch.com', '+234 802 000 0003', 'Doris Achebe', '00000000-0000-0000-0000-000000000003', '$argon2id$v=19$m=65536,p=4,t=3$ssJZsPl5WCXRvAToLl0HiA$ICiY3i0IN2LN+oXmrqeK1rd+j/Xfr3PviNexXdjUidg'),
+  ('00000000-0000-0000-0000-000000000205', 'inventory@queenstouch.com', '+234 802 000 0004', 'Chidi Nwosu', '00000000-0000-0000-0000-000000000004', '$argon2id$v=19$m=65536,p=4,t=3$ssJZsPl5WCXRvAToLl0HiA$ICiY3i0IN2LN+oXmrqeK1rd+j/Xfr3PviNexXdjUidg');
 
 INSERT INTO brands (id, name, slug) VALUES
   ('00000000-0000-0000-0000-000000000301', 'Velvet Rose', 'velvet-rose'),
@@ -641,3 +645,98 @@ INSERT INTO promotions (id, code, title, type, value, minimum_order_amount, maxi
   ('00000000-0000-0000-0000-000000000701', 'QUEEN10', '10% off your order', 'percentage', 10, 50, 25, TRUE),
   ('00000000-0000-0000-0000-000000000702', 'ROYAL20', '20% off your order', 'percentage', 20, 100, 60, TRUE),
   ('00000000-0000-0000-0000-000000000703', 'FLAT15', '$15 off your order', 'fixed', 15, 75, NULL, TRUE);
+
+-- ======================= maintenance & consistency ==========================
+
+-- updated_at is maintained automatically on every row change.
+CREATE OR REPLACE FUNCTION set_updated_at() RETURNS trigger AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_users_updated_at ON users;
+CREATE TRIGGER trg_users_updated_at BEFORE UPDATE ON users
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+DROP TRIGGER IF EXISTS trg_categories_updated_at ON categories;
+CREATE TRIGGER trg_categories_updated_at BEFORE UPDATE ON categories
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+DROP TRIGGER IF EXISTS trg_brands_updated_at ON brands;
+CREATE TRIGGER trg_brands_updated_at BEFORE UPDATE ON brands
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+DROP TRIGGER IF EXISTS trg_products_updated_at ON products;
+CREATE TRIGGER trg_products_updated_at BEFORE UPDATE ON products
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+DROP TRIGGER IF EXISTS trg_variants_updated_at ON product_variants;
+CREATE TRIGGER trg_variants_updated_at BEFORE UPDATE ON product_variants
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+DROP TRIGGER IF EXISTS trg_carts_updated_at ON carts;
+CREATE TRIGGER trg_carts_updated_at BEFORE UPDATE ON carts
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+DROP TRIGGER IF EXISTS trg_cart_items_updated_at ON cart_items;
+CREATE TRIGGER trg_cart_items_updated_at BEFORE UPDATE ON cart_items
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+DROP TRIGGER IF EXISTS trg_wishlists_updated_at ON wishlists;
+CREATE TRIGGER trg_wishlists_updated_at BEFORE UPDATE ON wishlists
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+DROP TRIGGER IF EXISTS trg_addresses_updated_at ON addresses;
+CREATE TRIGGER trg_addresses_updated_at BEFORE UPDATE ON addresses
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+DROP TRIGGER IF EXISTS trg_promotions_updated_at ON promotions;
+CREATE TRIGGER trg_promotions_updated_at BEFORE UPDATE ON promotions
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+DROP TRIGGER IF EXISTS trg_orders_updated_at ON orders;
+CREATE TRIGGER trg_orders_updated_at BEFORE UPDATE ON orders
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+DROP TRIGGER IF EXISTS trg_payments_updated_at ON payments;
+CREATE TRIGGER trg_payments_updated_at BEFORE UPDATE ON payments
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+DROP TRIGGER IF EXISTS trg_installments_updated_at ON installments;
+CREATE TRIGGER trg_installments_updated_at BEFORE UPDATE ON installments
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+DROP TRIGGER IF EXISTS trg_reviews_updated_at ON reviews;
+CREATE TRIGGER trg_reviews_updated_at BEFORE UPDATE ON reviews
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- Keep products.rating / products.review_count in sync with APPROVED reviews,
+-- so moderation (approve/reject) is reflected immediately.
+CREATE OR REPLACE FUNCTION sync_product_rating() RETURNS trigger AS $$
+DECLARE
+  pid UUID;
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    pid = OLD.product_id;
+  ELSE
+    pid = NEW.product_id;
+  END IF;
+  UPDATE products p
+  SET rating = COALESCE(
+        (SELECT round(avg(r.rating)::numeric, 2) FROM reviews r
+          WHERE r.product_id = pid AND r.is_approved),
+        0::numeric
+      ),
+      review_count = (SELECT count(*) FROM reviews r
+          WHERE r.product_id = pid AND r.is_approved)
+  WHERE p.id = pid;
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_sync_product_rating ON reviews;
+CREATE TRIGGER trg_sync_product_rating
+AFTER INSERT OR UPDATE OR DELETE ON reviews
+FOR EACH ROW EXECUTE FUNCTION sync_product_rating();
