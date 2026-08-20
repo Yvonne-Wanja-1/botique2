@@ -13,7 +13,23 @@ enum Role {
         Role.customer => 'Customer',
       };
 
+  String get apiValue => switch (this) {
+        Role.superAdmin => 'super_admin',
+        Role.storeManager => 'store_manager',
+        Role.salesStaff => 'sales_staff',
+        Role.inventoryStaff => 'inventory_staff',
+        Role.customer => 'customer',
+      };
+
   bool get isStaff => this != Role.customer;
+
+  static Role fromApi(String value) => switch (value) {
+        'super_admin' => Role.superAdmin,
+        'store_manager' => Role.storeManager,
+        'sales_staff' => Role.salesStaff,
+        'inventory_staff' => Role.inventoryStaff,
+        _ => Role.customer,
+      };
 }
 
 class User {
@@ -27,6 +43,30 @@ class User {
     this.isActive = true,
     this.createdAt,
   });
+
+  factory User.fromJson(Map<String, dynamic> json) {
+    return User(
+      id: json['id'] as String? ?? '',
+      name: (json['fullName'] as String?) ?? (json['full_name'] as String?) ?? '',
+      email: json['email'] as String? ?? '',
+      phone: json['phone'] as String? ?? '',
+      role: Role.fromApi(json['role'] as String? ?? 'customer'),
+      avatarUrl: json['avatarUrl'] as String?,
+      isActive: json['isActive'] as bool? ?? true,
+      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? ''),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'fullName': name,
+        'email': email,
+        'phone': phone,
+        'role': role.apiValue,
+        'avatarUrl': avatarUrl,
+        'isActive': isActive,
+        if (createdAt != null) 'createdAt': createdAt!.toIso8601String(),
+      };
 
   final String id;
   final String name;

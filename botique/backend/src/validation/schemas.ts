@@ -139,6 +139,24 @@ export const staffSchema = z.object({
   role: z.enum(['super_admin', 'store_manager', 'sales_staff', 'inventory_staff']),
 });
 
+// Public self-registration. Strict mode rejects any unknown field (e.g. a
+// client-supplied `role`) so a public user can never select a privileged role.
+export const registerSchema = z
+  .object({
+    fullName: z.string().min(1).max(200),
+    email: z.string().email(),
+    phone: z.string().min(1).max(50),
+    password: z.string().min(8, 'Password must be at least 8 characters').max(128),
+  })
+  .strict();
+
+export const loginSchema = z
+  .object({
+    email: z.string().email(),
+    password: z.string().min(1),
+  })
+  .strict();
+
 export const staffCreateSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),

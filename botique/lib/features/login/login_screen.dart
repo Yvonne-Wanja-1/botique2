@@ -4,16 +4,62 @@ import 'package:provider/provider.dart';
 
 import '../../core/theme/theme.dart';
 import '../../core/widgets/brand_header.dart';
-import '../../models/user.dart';
+import '../../data/api/api_exception.dart';
 import '../../services/auth_service.dart';
 
-class LoginScreen extends StatelessWidget {
+class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final auth = context.read<AuthService>();
+  State<LoginScreen> createState() => _LoginScreenState();
+}
 
+class _LoginScreenState extends State<LoginScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _email = TextEditingController();
+  final _password = TextEditingController();
+  bool _obscure = true;
+  bool _submitting = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _email.dispose();
+    _password.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    try {
+      await context.read<AuthService>().login(
+            email: _email.text.trim(),
+            password: _password.text,
+          );
+      if (!mounted) return;
+      final auth = context.read<AuthService>();
+      context.go(auth.isStaff ? '/admin' : '/');
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _submitting = false;
+        _error = friendlyAuthError(e);
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _submitting = false;
+        _error = 'Something went wrong. Please try again.';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: QueensTouchColors.cream,
       body: Center(
@@ -25,7 +71,7 @@ class LoginScreen extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const BrandHeader(),
-                const SizedBox(height: 32),
+                const SizedBox(height: 28),
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(24),
@@ -39,36 +85,91 @@ class LoginScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Choose a demo account to preview the app.',
+                          'Welcome back to Queens\' Touch.',
                           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                                 color: QueensTouchColors.textMuted,
                               ),
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 24),
-                        for (final account in DemoAccounts.accounts) ...[
-                          _DemoAccountTile(
-                            account: account,
-                            onTap: () async {
-                              await auth.loginAs(account);
-                              if (!context.mounted) return;
-                              if (account.role == Role.customer) {
-                                context.go('/');
-                              } else {
-                                context.go('/admin');
-                              }
-                            },
+                        Form(
+                          key: _formKey,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              TextFormField(
+                                controller: _email,
+                                keyboardType: TextInputType.emailAddress,
+                                textInputAction: TextInputAction.next,
+                                decoration: const InputDecoration(
+                                  labelText: 'Email',
+                                  prefixIcon: Icon(Icons.mail_outline),
+                                  border: OutlineInputBorder(),
+                                ),
+                                validator: (v) {
+                                  final value = v?.trim() ?? '';
+                                  if (value.isEmpty) return 'Enter your email';
+                                  if (!value.contains('@')) return 'Enter a valid email address';
+                                  return null;
+                                },
+                              ),
+                              const SizedBox(height: 12),
+                              TextFormField(
+                                controller: _password,
+                                obscureText: _obscure,
+                                textInputAction: TextInputAction.done,
+                                onFieldSubmitted: (_) => _submit(),
+                                decoration: InputDecoration(
+                                  labelText: 'Password',
+                                  prefixIcon: const Icon(Icons.lock_outline),
+                                  border: const OutlineInputBorder(),
+                                  suffixIcon: IconButton(
+                                    icon: Icon(
+                                      _obscure ? Icons.visibility : Icons.visibility_off,
+                                    ),
+                                    onPressed: () => setState(() => _obscure = !_obscure),
+                                  ),
+                                ),
+                                validator: (v) =>
+                                    (v == null || v.isEmpty) ? 'Enter your password' : null,
+                              ),
+                            ],
                           ),
-                          if (account != DemoAccounts.accounts.last)
-                            const SizedBox(height: 8),
+                        ),
+                        if (_error != null) ...[
+                          const SizedBox(height: 16),
+                          Text(
+                            _error!,
+                            style: const TextStyle(color: QueensTouchColors.danger),
+                            textAlign: TextAlign.center,
+                          ),
                         ],
+                        const SizedBox(height: 24),
+                        ElevatedButton(
+                          onPressed: _submitting ? null : _submit,
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                          ),
+                          child: _submitting
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Text('Sign in'),
+                        ),
+                        const SizedBox(height: 12),
+                        TextButton(
+                          onPressed: () => context.go('/register'),
+                          child: const Text('New here? Create an account'),
+                        ),
                       ],
                     ),
                   ),
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Demo build — real authentication arrives with the backend.',
+                  'Forgot your password? Contact the boutique administrator.',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: QueensTouchColors.textMuted,
                       ),
@@ -76,66 +177,6 @@ class LoginScreen extends StatelessWidget {
                 ),
               ],
             ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _DemoAccountTile extends StatelessWidget {
-  const _DemoAccountTile({required this.account, required this.onTap});
-
-  final User account;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final isStaff = account.role != Role.customer;
-    return Material(
-      color: isStaff ? QueensTouchColors.blushLight : Colors.white,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFE4D5DA)),
-          ),
-          child: Row(
-            children: [
-              CircleAvatar(
-                backgroundColor: QueensTouchColors.plum,
-                child: Text(
-                  account.name.characters.first,
-                  style: const TextStyle(color: Colors.white),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      account.name,
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    Text(
-                      '${account.role.label} · ${account.email}',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: QueensTouchColors.textMuted,
-                          ),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(
-                isStaff ? Icons.dashboard_outlined : Icons.storefront_outlined,
-                color: QueensTouchColors.plum,
-              ),
-            ],
           ),
         ),
       ),

@@ -79,10 +79,8 @@ class _QueensTouchAppState extends State<QueensTouchApp> {
       providers: [
         ChangeNotifierProvider(
           create: (_) {
-            final auth = AuthService()..restoreSession();
-            if (widget.apiClient != null) {
-              auth.addListener(() => syncPrincipal(widget.apiClient!, auth.currentUser));
-            }
+            final auth = AuthService(apiClient: widget.apiClient);
+            auth.restoreSession();
             return auth;
           },
         ),

@@ -13,6 +13,10 @@ export interface UserRow {
   createdAt: string;
 }
 
+export interface AuthUserRow extends UserRow {
+  passwordHash: string | null;
+}
+
 export class UserRepository {
   constructor(private pool: Pool) {}
 
@@ -34,6 +38,31 @@ export class UserRepository {
       [id],
     );
     return res.rows.length ? this.map(res.rows[0]) : null;
+  }
+
+  async findByEmail(email: string): Promise<UserRow | null> {
+    const res = await this.pool.query(
+      `SELECT u.id, u.email, u.phone, u.full_name, u.is_active, u.created_at, r.name AS role
+       FROM users u JOIN roles r ON r.id = u.role_id
+       WHERE u.email = $1`,
+      [email],
+    );
+    return res.rows.length ? this.map(res.rows[0]) : null;
+  }
+
+  async findByEmailWithPassword(email: string): Promise<AuthUserRow | null> {
+    const res = await this.pool.query(
+      `SELECT u.id, u.email, u.phone, u.full_name, u.password_hash, u.is_active, u.created_at, r.name AS role
+       FROM users u JOIN roles r ON r.id = u.role_id
+       WHERE u.email = $1`,
+      [email],
+    );
+    if (!res.rows.length) return null;
+    const r = res.rows[0];
+    return {
+      ...this.map(r),
+      passwordHash: r.password_hash ? String(r.password_hash) : null,
+    };
   }
 
   async list(params: { role?: string; search?: string; page?: number; pageSize?: number }) {
@@ -65,16 +94,16 @@ export class UserRepository {
     return { rows: res.rows.map((r) => this.map(r)), total: toNumber(countRes.rows[0]?.n ?? 0) };
   }
 
-  async create(input: { email: string; password: string; fullName: string; phone: string; role: string }): Promise<UserRow> {
+  async create(input: { email: string; passwordHash: string; fullName: string; phone: string; role: string }): Promise<UserRow> {
     const roleRes = await this.pool.query('SELECT id FROM roles WHERE name = $1', [input.role]);
     if (!roleRes.rows.length) throw new NotFoundError('Role not found');
     const dup = await this.pool.query('SELECT id FROM users WHERE email = $1', [input.email]);
-    if (dup.rows.length) throw new ConflictError('A user with this email already exists');
+    if (dup.rows.length) throw new ConflictError('An account with this email already exists');
     const id = randomUUID();
     await this.pool.query(
       `INSERT INTO users (id, email, phone, full_name, role_id, password_hash)
        VALUES ($1,$2,$3,$4,$5,$6)`,
-      [id, input.email, input.phone, input.fullName, roleRes.rows[0].id, input.password],
+      [id, input.email, input.phone, input.fullName, roleRes.rows[0].id, input.passwordHash],
     );
     const user = await this.getById(id);
     if (!user) throw new NotFoundError('User was not created');

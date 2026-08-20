@@ -8,28 +8,28 @@ import '../../models/product.dart';
 import 'api_exception.dart';
 
 class ApiClient {
-  ApiClient({required this.baseUrl, this._userId, this._role, http.Client? client})
+  ApiClient({required this.baseUrl, this._token, http.Client? client})
       : _client = client ?? http.Client();
 
   final String baseUrl;
   final http.Client _client;
-  String? _userId;
-  String? _role;
+  String? _token;
 
-  void setPrincipal({String? userId, String? role}) {
-    _userId = userId;
-    _role = role;
+  /// Invoked when a request is rejected with 401 so the app can clear the
+  /// expired session. Set by the auth layer; must never retry in a loop.
+  void Function()? onUnauthorized;
+
+  void setToken(String? token) {
+    _token = token;
   }
 
-  void clearPrincipal() {
-    _userId = null;
-    _role = null;
+  void clearToken() {
+    _token = null;
   }
 
   Map<String, String> get _authHeaders => {
         'accept': 'application/json',
-        'x-user-id': ?_userId,
-        'x-user-role': ?_role,
+        if (_token != null && _token!.isNotEmpty) 'authorization': 'Bearer $_token',
       };
 
   Map<String, String> get _headers => {..._authHeaders, 'content-type': 'application/json'};
@@ -111,13 +111,20 @@ class ApiClient {
     if (decoded is Map<String, dynamic> && decoded['success'] == false) {
       final error = decoded['error'];
       if (error is Map<String, dynamic>) {
-        throw ApiException(
+        final exception = ApiException(
           statusCode: response.statusCode,
           code: (error['code'] as String?) ?? 'ERROR',
           message: (error['message'] as String?) ?? 'Something went wrong',
           details: error['details'],
         );
+        if (exception.statusCode == 401) {
+          onUnauthorized?.call();
+        }
+        throw exception;
       }
+    }
+    if (response.statusCode == 401) {
+      onUnauthorized?.call();
     }
     throw ApiException(
       statusCode: response.statusCode,

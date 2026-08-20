@@ -11,12 +11,11 @@ import 'package:botique/models/product.dart';
 void main() {
   test('returns data from a successful envelope', () async {
     final mock = MockClient((request) async {
-      expect(request.headers['x-user-id'], 'u1');
-      expect(request.headers['x-user-role'], 'customer');
+      expect(request.headers['authorization'], 'Bearer tok-1');
       return http.Response('{"success": true, "data": {"name": "Dress"}}', 200,
           headers: {'content-type': 'application/json'});
     });
-    final client = ApiClient(baseUrl: 'http://localhost:8080', userId: 'u1', role: 'customer', client: mock);
+    final client = ApiClient(baseUrl: 'http://localhost:8080', token: 'tok-1', client: mock);
     final data = await client.get('/api/categories');
     expect(data, isA<Map<String, dynamic>>());
     expect((data as Map<String, dynamic>)['name'], 'Dress');
@@ -45,23 +44,45 @@ void main() {
     );
   });
 
-  test('setPrincipal updates auth headers', () async {
+  test('setToken updates the authorization header', () async {
     final mock = MockClient((request) async {
-      expect(request.headers['x-user-id'], 'u2');
-      expect(request.headers['x-user-role'], 'staff');
+      expect(request.headers['authorization'], 'Bearer tok-2');
       return http.Response('{"success": true, "data": []}', 200,
           headers: {'content-type': 'application/json'});
     });
     final client = ApiClient(baseUrl: 'http://localhost:8080', client: mock);
-    client.setPrincipal(userId: 'u2', role: 'staff');
+    client.setToken('tok-2');
     await client.get('/api/things');
+  });
+
+  test('clearToken removes the authorization header', () async {
+    final mock = MockClient((request) async {
+      expect(request.headers.containsKey('authorization'), isFalse);
+      return http.Response('{"success": true, "data": []}', 200,
+          headers: {'content-type': 'application/json'});
+    });
+    final client = ApiClient(baseUrl: 'http://localhost:8080', token: 'tok-3', client: mock);
+    client.clearToken();
+    await client.get('/api/things');
+  });
+
+  test('invokes onUnauthorized when the backend returns 401', () async {
+    var called = 0;
+    final mock = MockClient((request) async {
+      return http.Response('{"success": false, "error": {"code": "UNAUTHORIZED", "message": "expired"}}', 401,
+          headers: {'content-type': 'application/json'});
+    });
+    final client = ApiClient(baseUrl: 'http://localhost:8080', client: mock);
+    client.onUnauthorized = () => called++;
+    await expectLater(client.get('/api/x'), throwsA(isA<ApiException>()));
+    expect(called, 1);
   });
 
   test('postMultipart uploads fields and images', () async {
     final mock = MockClient((request) async {
       expect(request.method, 'POST');
       expect(request.url.path, '/api/products/p1/images');
-      expect(request.headers['x-user-id'], 'u203');
+      expect(request.headers['authorization'], 'Bearer tok-4');
       expect(request.headers['content-type'], startsWith('multipart/form-data'));
       final body = utf8.decode(request.bodyBytes);
       expect(body, contains('name="field1"'));
@@ -72,7 +93,7 @@ void main() {
         headers: {'content-type': 'application/json'},
       );
     });
-    final client = ApiClient(baseUrl: 'http://localhost:8080', userId: 'u203', client: mock);
+    final client = ApiClient(baseUrl: 'http://localhost:8080', token: 'tok-4', client: mock);
     final data = await client.postMultipart(
       '/api/products/p1/images',
       fields: {'field1': 'v1'},

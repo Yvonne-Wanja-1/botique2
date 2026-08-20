@@ -3,7 +3,7 @@ import express from 'express';
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { Pool } from 'pg';
-import { authStub } from './middleware/authStub.js';
+import { createAuthenticate } from './middleware/auth.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { requestLogger } from './middleware/requestLogger.js';
 import { healthRouter } from './routes/healthRouter.js';
@@ -37,6 +37,8 @@ import { customerRouter } from './routes/customerRouter.js';
 import { UserRepository } from './repositories/userRepository.js';
 import { UserService } from './services/userService.js';
 import { userRouter } from './routes/userRouter.js';
+import { AuthService } from './services/authService.js';
+import { authRouter } from './routes/authRouter.js';
 import { NotificationRepository } from './repositories/notificationRepository.js';
 import { NotificationService } from './services/notificationService.js';
 import { notificationRouter } from './routes/notificationRouter.js';
@@ -46,7 +48,12 @@ import { AuditRepository } from './repositories/auditRepository.js';
 import { AuditService } from './services/auditService.js';
 import { auditRouter } from './routes/auditRouter.js';
 
-export function createApp(pool: Pool, options: { uploadsDir?: string } = {}): express.Express {
+const DEV_JWT_SECRET = 'dev-only-jwt-secret-do-not-use-in-production';
+
+export function createApp(
+  pool: Pool,
+  options: { uploadsDir?: string; jwtSecret?: string; jwtExpiresIn?: string; allowDevAuthStub?: boolean } = {},
+): express.Express {
   const app = express();
   app.use(cors());
   app.use(express.json());
@@ -58,7 +65,19 @@ export function createApp(pool: Pool, options: { uploadsDir?: string } = {}): ex
 
   app.use('/health', healthRouter(pool));
 
-  app.use('/api', authStub);
+  const jwtSecret = options.jwtSecret ?? process.env.JWT_SECRET ?? DEV_JWT_SECRET;
+  const jwtExpiresIn = options.jwtExpiresIn ?? process.env.JWT_EXPIRES_IN ?? '7d';
+  // The legacy header stub is only accepted outside production so the existing
+  // integration suites keep running. In production only real JWTs are trusted.
+  const allowDevAuthStub = options.allowDevAuthStub ?? process.env.NODE_ENV !== 'production';
+
+  const userRepo = new UserRepository(pool);
+  const authenticate = createAuthenticate({ jwtSecret, userRepo, allowDevStub: allowDevAuthStub });
+
+  const authService = new AuthService(userRepo, jwtSecret, jwtExpiresIn);
+  app.use('/api/auth', authRouter(authService, authenticate));
+
+  app.use('/api', authenticate);
 
   const productRepo = new ProductRepository(pool);
   const productService = new ProductService(productRepo);
@@ -104,7 +123,6 @@ export function createApp(pool: Pool, options: { uploadsDir?: string } = {}): ex
   const customerService = new CustomerService(customerRepo, orderRepo);
   app.use('/api/customers', customerRouter(customerService));
 
-  const userRepo = new UserRepository(pool);
   const userService = new UserService(userRepo);
   app.use('/api/users', userRouter(userService));
 

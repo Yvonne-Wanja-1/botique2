@@ -164,7 +164,7 @@ void main() {
     final mock = MockClient((request) async {
       expect(request.method, 'POST');
       expect(request.url.path, '/api/products/p1/images');
-      expect(request.headers['x-user-role'], 'store_manager');
+      expect(request.headers['authorization'], 'Bearer tok-sm');
       expect(request.headers['content-type'], startsWith('multipart/form-data'));
       final body = utf8.decode(request.bodyBytes);
       expect(body, contains('filename="dress.png"'));
@@ -176,8 +176,7 @@ void main() {
     });
     final repo = ApiProductRepository(ApiClient(
       baseUrl: 'http://localhost:8080',
-      userId: 'u203',
-      role: 'store_manager',
+      token: 'tok-sm',
       client: mock,
     ));
     final images = await repo.uploadImages('p1', [

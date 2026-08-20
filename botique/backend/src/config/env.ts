@@ -5,6 +5,8 @@ export interface AppConfig {
   databaseUrl: string;
   nodeEnv: string;
   uploadsDir: string;
+  jwtSecret: string;
+  jwtExpiresIn: string;
 }
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): AppConfig {
@@ -26,11 +28,24 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
       'DATABASE_URL is required. Copy backend/.env.example to backend/.env and set it.',
     );
   }
+  const nodeEnv = env.NODE_ENV ?? 'development';
+  const jwtSecret = env.JWT_SECRET ?? '';
+  if (jwtSecret.length < 16) {
+    if (nodeEnv === 'production') {
+      throw new Error(
+        'JWT_SECRET is required in production and must be at least 16 characters. ' +
+          'Set it in backend/.env (e.g. openssl rand -hex 32).',
+      );
+    }
+    console.warn('WARNING: JWT_SECRET is not set; using an insecure development secret. Set JWT_SECRET in backend/.env.');
+  }
   return {
     port,
     databaseUrl,
-    nodeEnv: env.NODE_ENV ?? 'development',
+    nodeEnv,
     uploadsDir: env.UPLOADS_DIR ?? 'uploads',
+    jwtSecret: jwtSecret || 'dev-only-jwt-secret-do-not-use-in-production',
+    jwtExpiresIn: env.JWT_EXPIRES_IN ?? '7d',
   };
 }
 
