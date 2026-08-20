@@ -1,4 +1,5 @@
 import type { UserRepository } from '../repositories/userRepository.js';
+import { hashPassword } from '../utils/password.js';
 
 export class UserService {
   constructor(private userRepo: UserRepository) {}
@@ -7,8 +8,9 @@ export class UserService {
     return this.userRepo.list(params);
   }
 
-  create(input: { email: string; password: string; fullName: string; phone: string; role: string }) {
-    return this.userRepo.create(input);
+  async create(input: { email: string; password: string; fullName: string; phone: string; role: string }) {
+    const passwordHash = await hashPassword(input.password);
+    return this.userRepo.create({ ...input, passwordHash });
   }
 
   setRole(id: string, role: string) {

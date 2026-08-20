@@ -9,6 +9,8 @@ import '../../customer/catalog/write_review_screen.dart';
 import '../../customer/orders/order_detail_screen.dart';
 import '../../customer/account/account_screen.dart';
 import '../../features/login/login_screen.dart';
+import '../../features/auth/register_screen.dart';
+import '../../features/auth/splash_screen.dart';
 
 class AppRouter {
   AppRouter._();
@@ -18,13 +20,20 @@ class AppRouter {
       initialLocation: '/',
       redirect: (context, state) {
         final auth = context.read<AuthService>();
-        final loggedIn = auth.isLoggedIn;
         final path = state.matchedLocation;
 
-        if (!loggedIn && path != '/login') {
+        // Session is still being restored from secure storage.
+        if (auth.status == AuthStatus.checking) {
+          return path == '/splash' ? null : '/splash';
+        }
+
+        final loggedIn = auth.isLoggedIn;
+        final isPublic = path == '/login' || path == '/register';
+
+        if (!loggedIn && !isPublic) {
           return '/login';
         }
-        if (loggedIn && path == '/login') {
+        if (loggedIn && isPublic) {
           return auth.isStaff ? '/admin' : '/';
         }
         if (path.startsWith('/admin') && !auth.isStaff) {
@@ -37,8 +46,16 @@ class AppRouter {
       },
       routes: [
         GoRoute(
+          path: '/splash',
+          builder: (context, state) => const SplashScreen(),
+        ),
+        GoRoute(
           path: '/login',
           builder: (context, state) => const LoginScreen(),
+        ),
+        GoRoute(
+          path: '/register',
+          builder: (context, state) => const RegisterScreen(),
         ),
         GoRoute(
           path: '/',

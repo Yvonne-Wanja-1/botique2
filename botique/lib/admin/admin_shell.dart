@@ -60,22 +60,26 @@ class _AdminShellState extends State<AdminShell> {
       ),
       body: Row(
         children: [
-          SingleChildScrollView(
-            child: NavigationRail(
-              selectedIndex: _index,
-              onDestinationSelected: (i) => setState(() => _index = i),
-              labelType: NavigationRailLabelType.all,
-              leading: const SizedBox(height: 8),
-              destinations: [
-                for (final s in sections)
-                  NavigationRailDestination(
-                    icon: Icon(s.icon),
-                    label: Text(s.label),
-                  ),
-              ],
+          Container(
+            width: 220,
+            color: QueensTouchColors.surfaceLight,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (var i = 0; i < sections.length; i++)
+                    _NavDestination(
+                      selected: i == _index,
+                      icon: sections[i].icon,
+                      label: sections[i].label,
+                      onTap: () => setState(() => _index = i),
+                    ),
+                ],
+              ),
             ),
           ),
-          VerticalDivider(width: 1),
+          const VerticalDivider(width: 1),
           Expanded(child: section.builder(context)),
         ],
       ),
@@ -218,4 +222,61 @@ class _AdminSection {
       builder: (_) => const SettingsScreen(),
     ),
   ];
+}
+
+class _NavDestination extends StatelessWidget {
+  const _NavDestination({
+    required this.selected,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final bool selected;
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? QueensTouchColors.blushLight : Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            border: Border(
+              left: BorderSide(
+                color: selected ? QueensTouchColors.plum : Colors.transparent,
+                width: 3,
+              ),
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                size: 20,
+                color: selected ? QueensTouchColors.plum : QueensTouchColors.textMuted,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: selected ? QueensTouchColors.plumDark : QueensTouchColors.textDark,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

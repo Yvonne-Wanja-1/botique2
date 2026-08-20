@@ -16,7 +16,7 @@ void main() {
   test('getEligibility hits the eligibility endpoint and maps status', () async {
     final mock = MockClient((request) async {
       expect(request.url.path, '/api/reviews/products/p1/eligibility');
-      expect(request.headers['x-user-role'], 'customer');
+      expect(request.headers['authorization'], 'Bearer tok-c');
       return http.Response(
         '{"success": true, "data": {"productId": "p1", "purchased": true, "canReview": false, '
         '"review": $reviewJson}}',
@@ -26,8 +26,7 @@ void main() {
     });
     final repo = ApiReviewRepository(ApiClient(
       baseUrl: 'http://localhost:8080',
-      userId: 'u201',
-      role: 'customer',
+      token: 'tok-c',
       client: mock,
     ));
     final eligibility = await repo.getEligibility('p1');
