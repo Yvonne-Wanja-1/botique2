@@ -27,6 +27,14 @@ describe('cart & wishlist API', () => {
     expect(res.body.data.subtotal).toBeCloseTo(res.body.data.items[0].totalPrice, 2);
   });
 
+  it('defaults to the product variant when none is supplied', async () => {
+    const otherCustomer = { 'x-user-id': '00000000-0000-0000-0000-000000000203', 'x-user-role': 'store_manager' };
+    const res = await request(app).post('/api/cart/items').set(otherCustomer).send({ productId: PID, quantity: 1 });
+    expect(res.status).toBe(201);
+    expect(res.body.data.items).toHaveLength(1);
+    expect(res.body.data.items[0].variantId).not.toBeNull();
+  });
+
   it('lists the cart', async () => {
     const res = await request(app).get('/api/cart').set(customer);
     expect(res.status).toBe(200);

@@ -186,7 +186,7 @@ class AuthService extends ChangeNotifier {
   Future<void> _validateSession() async {
     if (_api == null) return;
     try {
-      final data = await _api.get('/auth/me');
+      final data = await _api.get('/api/auth/me');
       if (data is Map<String, dynamic>) {
         final user = User.fromJson(data);
         _currentUser = user;
@@ -219,7 +219,7 @@ class AuthService extends ChangeNotifier {
       await loginAs(match.first);
       return;
     }
-    final data = await _api.post('/auth/login', body: {'email': email, 'password': password});
+    final data = await _api.post('/api/auth/login', body: {'email': email, 'password': password});
     await _applyAuthPayload(data);
   }
 
@@ -244,7 +244,7 @@ class AuthService extends ChangeNotifier {
       notifyListeners();
       return;
     }
-    final data = await _api.post('/auth/register', body: {
+    final data = await _api.post('/api/auth/register', body: {
       'fullName': fullName,
       'email': email,
       'phone': phone,
@@ -267,7 +267,7 @@ class AuthService extends ChangeNotifier {
 
   Future<void> logout() async {
     try {
-      await _api?.post('/auth/logout');
+      await _api?.post('/api/auth/logout');
     } catch (_) {
       // Best-effort: the session is discarded locally regardless.
     }
