@@ -35,8 +35,7 @@ export interface Order extends OrderRow {
   paymentSummary: PaymentSummary;
 }
 
-const DELIVERY_FEE = 2500;
-const FREE_DELIVERY_THRESHOLD = 100000;
+const DELIVERY_FEE = 200;
 
 function makeOrderNumber(): string {
   return `QT-${Date.now()}-${randomUUID().slice(0, 4).toUpperCase()}`;
@@ -177,7 +176,7 @@ export class OrderRepository {
         if (discountAmount > subtotal) discountAmount = subtotal;
       }
 
-      const shippingFee = subtotal - discountAmount >= FREE_DELIVERY_THRESHOLD ? 0 : DELIVERY_FEE;
+      const shippingFee = DELIVERY_FEE;
       const total = subtotal - discountAmount + shippingFee;
       const orderId = randomUUID();
       const orderNumber = makeOrderNumber();

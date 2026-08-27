@@ -24,63 +24,77 @@ class AccountScreen extends StatelessWidget {
     final auth = context.watch<AuthService>();
     final user = auth.currentUser;
 
+    if (user == null) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.person_outline, size: 64, color: QueensTouchColors.textMuted),
+              SizedBox(height: 16),
+              Text('Sign in to view your account', style: TextStyle(color: QueensTouchColors.textMuted)),
+            ],
+          ),
+        ),
+      );
+    }
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        if (user != null) ...[
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  _Avatar(radius: 28, user: user),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          user.name,
-                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
-                        ),
-                        Text(
-                          user.email,
-                          style: const TextStyle(color: QueensTouchColors.textMuted, fontSize: 13),
-                        ),
-                      ],
-                    ),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                _Avatar(radius: 28, user: user),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        user.name,
+                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                      ),
+                      Text(
+                        user.email,
+                        style: const TextStyle(color: QueensTouchColors.textMuted, fontSize: 13),
+                      ),
+                    ],
                   ),
-                  TextButton(
-                    onPressed: () => context.push('/account/profile'),
-                    child: const Text('Edit'),
-                  ),
-                ],
-              ),
+                ),
+                TextButton(
+                  onPressed: () => context.push('/account/profile'),
+                  child: const Text('Edit'),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 16),
-        ],
-        const _MenuSection(
+        ),
+        const SizedBox(height: 16),
+        _MenuSection(
           title: 'My Orders',
-          items: [
+          items: const [
             _MenuItem(icon: Icons.receipt_long, label: 'Order History'),
             _MenuItem(icon: Icons.track_changes, label: 'Track Orders'),
           ],
         ),
-        const _MenuSection(
+        _MenuSection(
           title: 'Payments',
-          items: [
+          items: const [
             _MenuItem(icon: Icons.payment, label: 'Payment History'),
             _MenuItem(icon: Icons.calendar_month, label: 'Installments'),
           ],
         ),
-        const _MenuSection(
+        _MenuSection(
           title: 'Account',
-          items: [
+          items: const [
             _MenuItem(icon: Icons.location_on_outlined, label: 'Saved Addresses'),
             _MenuItem(icon: Icons.lock_outline, label: 'Change Password'),
             _MenuItem(icon: Icons.favorite_outline, label: 'My Wishlist'),
-            _MenuItem(icon: Icons.settings_outlined, label: 'Preferences'),
+            _MenuItem(icon: Icons.notifications_outlined, label: 'Notifications'),
           ],
         ),
         const SizedBox(height: 8),
@@ -149,6 +163,7 @@ class _MenuSection extends StatelessWidget {
   void _openMenu(BuildContext context, String label) {
     switch (label) {
       case 'Order History':
+      case 'Track Orders':
         context.push('/account/orders');
       case 'Payment History':
         context.push('/account/payments');
@@ -580,7 +595,7 @@ class _Avatar extends StatelessWidget {
           child: hasImage
               ? null
               : Text(
-                  user.name.characters.first,
+                  user.name.isNotEmpty ? user.name[0] : '?',
                   style: TextStyle(
                     color: QueensTouchColors.onGold,
                     fontSize: radius * 0.72,

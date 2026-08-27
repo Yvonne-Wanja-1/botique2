@@ -139,7 +139,7 @@ class _ReviewCard extends StatelessWidget {
                   radius: 16,
                   backgroundColor: QueensTouchColors.blush,
                   child: Text(
-                    review.customerName.characters.first,
+                    review.customerName.isNotEmpty ? review.customerName[0] : '?',
                     style: const TextStyle(fontSize: 12, color: QueensTouchColors.textDark),
                   ),
                 ),

@@ -51,7 +51,7 @@ class _StaffScreenState extends State<StaffScreen> {
                   leading: CircleAvatar(
                     backgroundColor: QueensTouchColors.blushLight,
                     child: Text(
-                      staff.name.characters.first,
+                      staff.name.isNotEmpty ? staff.name[0] : '?',
                       style: const TextStyle(color: QueensTouchColors.plum),
                     ),
                   ),

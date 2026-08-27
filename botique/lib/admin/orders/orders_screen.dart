@@ -197,7 +197,7 @@ class _OrderCard extends StatelessWidget {
         leading: CircleAvatar(
           backgroundColor: QueensTouchColors.blushLight,
           child: Text(
-            order.customerName.characters.first,
+            order.customerName.isNotEmpty ? order.customerName[0] : '?',
             style: const TextStyle(color: QueensTouchColors.plum),
           ),
         ),

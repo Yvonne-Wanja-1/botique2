@@ -1,14 +1,27 @@
-import argon2 from 'argon2';
+import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 
-// Argon2id — the recommended KDF for password storage.
-// Returns a self-describing encoded hash (includes algorithm + parameters).
+const KEY_LENGTH = 64;
+
+/**
+ * Password hashing using Node.js built-in scrypt. Produces a self-describing
+ * encoded hash so the algorithm can be upgraded later without breaking
+ * existing hashes.
+ */
 export async function hashPassword(plain: string): Promise<string> {
-  return argon2.hash(plain, { type: argon2.argon2id });
+  const salt = randomBytes(16).toString('hex');
+  const hash = scryptSync(plain, salt, KEY_LENGTH);
+  return `scrypt:${salt}:${hash.toString('hex')}`;
 }
 
-export async function verifyPassword(plain: string, hash: string): Promise<boolean> {
+export async function verifyPassword(plain: string, stored: string): Promise<boolean> {
   try {
-    return await argon2.verify(hash, plain);
+    if (stored.startsWith('scrypt:')) {
+      const [, salt, hashHex] = stored.split(':');
+      const hash = Buffer.from(hashHex, 'hex');
+      const derived = scryptSync(plain, salt, KEY_LENGTH);
+      return timingSafeEqual(hash, derived);
+    }
+    return false;
   } catch {
     return false;
   }

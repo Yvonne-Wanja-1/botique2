@@ -201,8 +201,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     const Divider(height: 16),
                     _Row('Subtotal', formatKsh(_subtotal)),
                     _Row(
-                      'Shipping',
-                      shipping == 0 ? 'Free' : formatKsh(shipping),
+                      'Delivery Fee',
+                      formatKsh(shipping),
                     ),
                     const Divider(height: 16),
                     _Row('Total', formatKsh(total), isTotal: true),

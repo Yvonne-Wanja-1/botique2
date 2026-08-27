@@ -435,7 +435,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                         leading: CircleAvatar(
                           backgroundColor: QueensTouchColors.blushLight,
                           child: Text(
-                            c.fullName.isNotEmpty ? c.fullName.characters.first : '?',
+                            c.fullName.isNotEmpty ? c.fullName[0] : '?',
                             style: const TextStyle(color: QueensTouchColors.plum, fontSize: 14),
                           ),
                         ),
