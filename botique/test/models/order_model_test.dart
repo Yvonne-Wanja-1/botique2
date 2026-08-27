@@ -90,7 +90,7 @@ void main() {
   });
 
   test('formatKsh formats with thousands separator', () {
-    expect(formatKsh(52500), 'KSh 52,500.00');
-    expect(formatKsh(0), 'KSh 0.00');
+    expect(formatKsh(52500), 'KSh 52,500');
+    expect(formatKsh(0), 'KSh 0');
   });
 }

@@ -107,7 +107,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         color: QueensTouchColors.success,
       ),
       StatCard(label: "Today's Sales", value: sales.todayRevenue, format: formatKsh, icon: Icons.today, color: QueensTouchColors.plum),
-      StatCard(label: 'Total Orders', value: sales.totalOrders.toDouble(), format: (v) => v.round().toString(), icon: Icons.receipt_long, color: Colors.blue),
+      StatCard(label: 'Total Orders', value: sales.totalOrders.toDouble(), format: (v) => v.round().toString(), icon: Icons.receipt_long, color: QueensTouchColors.plumLight),
       StatCard(label: 'Total Customers', value: data.customers.totalCustomers.toDouble(), format: (v) => v.round().toString(), icon: Icons.people, color: QueensTouchColors.warning),
       StatCard(label: 'Total Products', value: data.inventory.totalProducts.toDouble(), format: (v) => v.round().toString(), icon: Icons.inventory_2, color: QueensTouchColors.gold),
       StatCard(label: 'Pending Orders', value: sales.pendingOrders.toDouble(), format: (v) => v.round().toString(), icon: Icons.pending_actions, color: QueensTouchColors.warning),
@@ -533,7 +533,7 @@ class RecentOrders extends StatelessWidget {
   static Color _statusColor(String status) => switch (status) {
         'delivered' => QueensTouchColors.success,
         'pending' => QueensTouchColors.warning,
-        'processing' => Colors.blue.shade700,
+        'processing' => QueensTouchColors.plumLight,
         'cancelled' => QueensTouchColors.danger,
         _ => QueensTouchColors.textMuted,
       };

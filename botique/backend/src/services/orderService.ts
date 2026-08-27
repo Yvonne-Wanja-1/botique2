@@ -1,17 +1,28 @@
 import { ForbiddenError, NotFoundError } from '../utils/errors.js';
 import type { CheckoutInput, Order, OrderRepository } from '../repositories/orderRepository.js';
 import type { InstallmentRepository } from '../repositories/installmentRepository.js';
+import type { PaymentRepository } from '../repositories/paymentRepository.js';
 
 export class OrderService {
   constructor(
     private orderRepo: OrderRepository,
     private installmentRepo: InstallmentRepository,
+    private paymentRepo?: PaymentRepository,
   ) {}
 
   async create(customerId: string, input: CheckoutInput): Promise<Order> {
     const order = await this.orderRepo.create(customerId, input);
     if (input.installmentRequested) {
       await this.installmentRepo.createPlan(order.id, customerId, 3);
+    }
+    if (input.confirmationMessage && this.paymentRepo) {
+      await this.paymentRepo.submit({
+        orderId: order.id,
+        customerId,
+        amount: order.total,
+        paymentDate: new Date().toISOString().slice(0, 10),
+        confirmationMessage: input.confirmationMessage,
+      });
     }
     return order;
   }

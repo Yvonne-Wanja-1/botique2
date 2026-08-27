@@ -258,7 +258,7 @@ class _OrderCard extends StatelessWidget {
   Color _statusColor(OrderStatus status) => switch (status) {
         OrderStatus.delivered => QueensTouchColors.success,
         OrderStatus.pending => QueensTouchColors.warning,
-        OrderStatus.processing => Colors.blue.shade700,
+        OrderStatus.processing => QueensTouchColors.plumLight,
         OrderStatus.ready => QueensTouchColors.gold,
         OrderStatus.cancelled => QueensTouchColors.danger,
         OrderStatus.paid => QueensTouchColors.success,

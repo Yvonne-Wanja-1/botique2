@@ -108,10 +108,10 @@ export function createApp(
   const installmentService = new InstallmentService(installmentRepo);
   app.use('/api/installments', installmentRouter(installmentService));
 
-  const orderService = new OrderService(orderRepo, installmentRepo);
+  const paymentRepo = new PaymentRepository(pool);
+  const orderService = new OrderService(orderRepo, installmentRepo, paymentRepo);
   app.use('/api/orders', orderRouter(orderService));
 
-  const paymentRepo = new PaymentRepository(pool);
   const paymentService = new PaymentService(paymentRepo, orderRepo, installmentRepo, notificationRepo, auditRepo);
   app.use('/api/payments', paymentRouter(paymentService));
 

@@ -307,7 +307,7 @@ class _PaymentCard extends StatelessWidget {
       PaymentStatus.pendingVerification => ('Pending Verification', QueensTouchColors.warning),
       PaymentStatus.partiallyPaid => ('Partially Paid', QueensTouchColors.gold),
       PaymentStatus.failed => ('Failed', QueensTouchColors.danger),
-      PaymentStatus.refunded => ('Refunded', Colors.blue.shade700),
+      PaymentStatus.refunded => ('Refunded', QueensTouchColors.plumLight),
       PaymentStatus.rejected => ('Rejected', QueensTouchColors.danger),
     };
     return Container(

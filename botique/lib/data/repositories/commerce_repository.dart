@@ -13,6 +13,7 @@ class CheckoutPayload {
     this.discount = 0,
     this.promotionCode,
     this.installmentRequested = false,
+    this.confirmationMessage,
   });
 
   final String customerName;
@@ -25,6 +26,7 @@ class CheckoutPayload {
   final double discount;
   final String? promotionCode;
   final bool installmentRequested;
+  final String? confirmationMessage;
 }
 
 class SubmitPaymentPayload {

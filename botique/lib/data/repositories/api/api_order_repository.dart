@@ -17,6 +17,8 @@ class ApiOrderRepository implements OrderRepository {
       'paymentMethod': _methodToApi(payload.paymentMethod),
       if (payload.promotionCode != null) 'promotionCode': payload.promotionCode,
       'installmentRequested': payload.installmentRequested,
+      if (payload.confirmationMessage != null)
+        'confirmationMessage': payload.confirmationMessage,
       'items': [
         for (final item in payload.items)
           {

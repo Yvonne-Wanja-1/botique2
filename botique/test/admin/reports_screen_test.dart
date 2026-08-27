@@ -92,7 +92,7 @@ void main() {
     await tester.pumpWidget(_wrap(_seededRepo()));
     await tester.pumpAndSettle();
 
-    expect(find.text('KSh 48,290.00'), findsOneWidget);
+    expect(find.text('KSh 48,290'), findsOneWidget);
     expect(find.text('Total Orders'), findsOneWidget);
     expect(find.text('QT-2026-1041 · Amara Okafor'), findsOneWidget);
   });
@@ -110,7 +110,7 @@ void main() {
 
     expect(find.text('Top Selling Products'), findsOneWidget);
     expect(find.text('Velvet Matte Lipstick'), findsOneWidget);
-    expect(find.text('1500 sold · KSh 150,000.00'), findsOneWidget);
+    expect(find.text('1500 sold · KSh 150,000'), findsOneWidget);
   });
 
   testWidgets('Installments tab hides date filter and shows real values', (tester) async {
@@ -133,7 +133,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('All Time'), findsNothing);
-    expect(find.text('KSh 20,000.00'), findsOneWidget);
+    expect(find.text('KSh 20,000'), findsOneWidget);
     expect(find.text('Outstanding Balance'), findsOneWidget);
   });
 
@@ -148,7 +148,7 @@ void main() {
     await tester.tap(find.text('This Month'));
     await tester.pumpAndSettle();
 
-    expect(find.text('KSh 48,290.00'), findsOneWidget);
+    expect(find.text('KSh 48,290'), findsOneWidget);
   });
 
   testWidgets('shows empty state when there is no data', (tester) async {

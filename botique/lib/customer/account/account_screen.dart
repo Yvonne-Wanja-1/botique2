@@ -451,7 +451,7 @@ class _PaymentStatusChip extends StatelessWidget {
       PaymentStatus.successful => ('Successful', QueensTouchColors.success),
       PaymentStatus.pendingVerification => ('Pending Verification', QueensTouchColors.warning),
       PaymentStatus.rejected => ('Rejected', QueensTouchColors.danger),
-      _ => (status.label, Colors.blueGrey),
+      _ => (status.label, QueensTouchColors.textMuted),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -476,7 +476,7 @@ class _InstallmentStatusChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final (label, color) = switch (status) {
       InstallmentStatus.pendingApproval => ('Pending', QueensTouchColors.warning),
-      InstallmentStatus.approved => ('Approved', Colors.blue.shade700),
+      InstallmentStatus.approved => ('Approved', QueensTouchColors.plumLight),
       InstallmentStatus.active => ('Active', QueensTouchColors.success),
       InstallmentStatus.completed => ('Completed', QueensTouchColors.success),
       InstallmentStatus.rejected => ('Rejected', QueensTouchColors.danger),

@@ -76,6 +76,7 @@ export const placeOrderSchema = z.object({
   paymentMethod: z.enum(['cash_on_delivery', 'bank_transfer', 'paybill', 'card', 'installment']),
   promotionCode: z.string().optional().nullable(),
   installmentRequested: z.boolean().default(false),
+  confirmationMessage: z.string().optional().nullable(),
   items: z
     .array(z.object({ productId: uuid, variantId: uuid.nullable(), quantity: positiveInt }))
     .min(1),
