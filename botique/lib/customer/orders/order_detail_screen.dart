@@ -572,7 +572,7 @@ Color _paymentStatusColor(PaymentStatus status) => switch (status) {
   PaymentStatus.successful => QueensTouchColors.success,
   PaymentStatus.pendingVerification => QueensTouchColors.warning,
   PaymentStatus.rejected => QueensTouchColors.danger,
-  _ => Colors.blueGrey,
+  _ => QueensTouchColors.textMuted,
 };
 
 String _installmentStatusLabel(InstallmentStatus status) => switch (status) {
@@ -586,7 +586,7 @@ String _installmentStatusLabel(InstallmentStatus status) => switch (status) {
 
 Color _installmentStatusColor(InstallmentStatus status) => switch (status) {
   InstallmentStatus.pendingApproval => QueensTouchColors.warning,
-  InstallmentStatus.approved => Colors.blue.shade700,
+  InstallmentStatus.approved => QueensTouchColors.plumLight,
   InstallmentStatus.active => QueensTouchColors.success,
   InstallmentStatus.completed => QueensTouchColors.success,
   InstallmentStatus.rejected => QueensTouchColors.danger,

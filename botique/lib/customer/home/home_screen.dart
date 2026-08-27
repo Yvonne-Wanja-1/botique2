@@ -131,27 +131,30 @@ class _CampaignHero extends StatelessWidget {
                 child: Stack(
                   children: [
                     Positioned(
-                      right: -40,
-                      bottom: -60,
+                      right: -60,
+                      bottom: -40,
                       child: Transform.translate(
                         offset: Offset(0, parallax),
                         child: Icon(
                           Icons.diamond,
-                          size: 220,
+                          size: 250,
                           color: Colors.white.withValues(alpha: 0.05),
                         ),
                       ),
                     ),
-                    Positioned(
-                      right: 16,
-                      top: 16,
-                      child: Opacity(
-                        opacity: 0.2,
-                        child: Image(
-                          image: const AssetImage('lib/assets/images/icon.jpeg'),
-                          width: 80,
-                          height: 80,
-                          fit: BoxFit.cover,
+                    Positioned.fill(
+                      child: Align(
+                        alignment: Alignment.center,
+                        child: ClipOval(
+                          child: Opacity(
+                            opacity: 0.9,
+                            child: const Image(
+                              image: AssetImage('lib/assets/images/icon.jpeg'),
+                              width: 180,
+                              height: 180,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
                         ),
                       ),
                     ),

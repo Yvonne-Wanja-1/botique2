@@ -11,7 +11,7 @@ void main() {
     period: 'All Time',
     columns: ['Order', 'Customer', 'Total'],
     rows: [
-      ['QT-2026-1041', 'Amara Okafor', 'KSh 149.97'],
+      ['QT-2026-1041', 'Amara Okafor', 'KSh 150'],
     ],
     totalsNote: 'Orders: 1',
   );
@@ -23,7 +23,7 @@ void main() {
     expect(csv, contains('Order,Customer,Total'));
     expect(csv, contains('QT-2026-1041'));
     expect(csv, contains('Amara Okafor'));
-    expect(csv, contains('KSh 149.97'));
+    expect(csv, contains('KSh 150'));
   });
 
   test('Excel file contains the report data', () {

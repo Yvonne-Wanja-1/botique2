@@ -29,6 +29,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   final _emailController = TextEditingController();
   final _addressController = TextEditingController();
   final _promoController = TextEditingController();
+  final _confirmationController = TextEditingController();
 
   bool _installmentRequested = false;
   bool _processing = false;
@@ -53,6 +54,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     _emailController.dispose();
     _addressController.dispose();
     _promoController.dispose();
+    _confirmationController.dispose();
     super.dispose();
   }
 
@@ -232,10 +234,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     const SizedBox(height: 12),
                     for (final (i, step) in const [
                       'Make the payment using the Paybill number above on your phone.',
-                      'Return to Queens\' Touch.',
-                      'Paste the Family Bank M-Pesa confirmation message into the payment proof field.',
-                      'Submit the payment proof.',
-                      'Your payment stays pending verification until an authorized admin confirms it.',
+                      'Copy the full M-Pesa confirmation message from your phone.',
+                      'Paste it into the confirmation message field below.',
+                      'Place your order — payment proof is submitted automatically.',
+                      'Your payment stays pending verification until an admin confirms it.',
                     ].indexed)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 8),
@@ -260,6 +262,25 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   ],
                 ),
               ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'M-Pesa Confirmation Message',
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _confirmationController,
+              minLines: 3,
+              maxLines: 5,
+              decoration: const InputDecoration(
+                hintText: 'Paste the full M-Pesa confirmation message you received after paying',
+                alignLabelWithHint: true,
+              ),
+              validator: (v) =>
+                  v == null || v.trim().isEmpty ? 'Required — paste your M-Pesa confirmation' : null,
             ),
             const SizedBox(height: 8),
             SwitchListTile(
@@ -322,6 +343,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       subtotal: _subtotal,
       promotionCode: _promoCode,
       installmentRequested: _installmentRequested,
+      confirmationMessage: _confirmationController.text.trim().isEmpty
+          ? null
+          : _confirmationController.text.trim(),
     );
 
     final repo = context.read<OrderRepository>();

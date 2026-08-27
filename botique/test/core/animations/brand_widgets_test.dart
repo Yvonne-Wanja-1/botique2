@@ -40,11 +40,11 @@ void main() {
       ),
     ));
     await tester.pumpAndSettle();
-    expect(find.text('KSh 48,290.00'), findsOneWidget);
+    expect(find.text('KSh 48,290'), findsOneWidget);
   });
 }
 
 String _ksh(double value) {
-  final s = value.toStringAsFixed(2);
+  final s = value.toStringAsFixed(0);
   return 'KSh ${s.replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (m) => ',')}';
 }

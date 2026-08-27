@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/theme/theme.dart';
 
@@ -13,14 +14,13 @@ class AboutUsScreen extends StatelessWidget {
         padding: const EdgeInsets.all(24),
         children: [
           Center(
-            child: Opacity(
-              opacity: 0.85,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(20),
+            child: ClipOval(
+              child: Opacity(
+                opacity: 0.9,
                 child: const Image(
                   image: AssetImage('lib/assets/images/icon.jpeg'),
-                  height: 100,
-                  width: 100,
+                  height: 120,
+                  width: 120,
                   fit: BoxFit.cover,
                 ),
               ),
@@ -29,12 +29,13 @@ class AboutUsScreen extends StatelessWidget {
           const SizedBox(height: 12),
           Center(
             child: Text(
-              'QUEENS\' TOUCH',
+              'QUEENS\' TOUCH BEAUTY SHOP',
               style: QueensTouchTheme.brandSerif(
-                fontSize: 28,
+                fontSize: 24,
                 weight: FontWeight.w700,
                 color: QueensTouchColors.gold,
               ),
+              textAlign: TextAlign.center,
             ),
           ),
           const SizedBox(height: 4),
@@ -116,11 +117,31 @@ class AboutUsScreen extends StatelessWidget {
             style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
           ),
           const SizedBox(height: 12),
-          const _ContactRow(icon: Icons.email_outlined, text: 'hello@queenstouch.com'),
+          const _ContactRow(icon: Icons.email_outlined, text: 'queenstouchbeauty333@gmail.com'),
           const SizedBox(height: 8),
-          const _ContactRow(icon: Icons.phone_outlined, text: '+254 700 000 000'),
+          const _ContactRow(icon: Icons.phone_outlined, text: '0714 184 601'),
           const SizedBox(height: 8),
-          const _ContactRow(icon: Icons.location_on_outlined, text: 'Nairobi, Kenya'),
+          const _ContactRow(icon: Icons.phone_outlined, text: '0725 865 727'),
+          const SizedBox(height: 24),
+          const Text(
+            'Pay with M-Pesa',
+            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+          ),
+          const SizedBox(height: 12),
+          const _ContactRow(icon: Icons.payment, text: 'Paybill: 222111'),
+          const SizedBox(height: 8),
+          const _ContactRow(icon: Icons.account_balance, text: 'Account: 65727'),
+          const SizedBox(height: 24),
+          const Text(
+            'Follow Us',
+            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+          ),
+          const SizedBox(height: 12),
+          _ContactRow(
+            icon: Icons.tiktok,
+            text: 'TikTok',
+            onTap: () => _launchUrl(context, 'https://www.tiktok.com/@yvonne0963?_r=1&_t=ZS-99ETqt9LR0K'),
+          ),
           const SizedBox(height: 32),
         ],
       ),
@@ -172,19 +193,37 @@ class _Feature extends StatelessWidget {
 }
 
 class _ContactRow extends StatelessWidget {
-  const _ContactRow({required this.icon, required this.text});
+  const _ContactRow({required this.icon, required this.text, this.onTap});
 
   final IconData icon;
   final String text;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    final row = Row(
       children: [
         Icon(icon, color: QueensTouchColors.gold, size: 18),
         const SizedBox(width: 10),
         Text(text, style: const TextStyle(color: QueensTouchColors.textMuted)),
       ],
     );
+    if (onTap != null) {
+      return GestureDetector(onTap: onTap, child: row);
+    }
+    return row;
+  }
+}
+
+Future<void> _launchUrl(BuildContext context, String url) async {
+  final uri = Uri.parse(url);
+  if (await canLaunchUrl(uri)) {
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  } else {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not open $url')),
+      );
+    }
   }
 }

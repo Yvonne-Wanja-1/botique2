@@ -20,6 +20,7 @@ export interface CheckoutInput {
   promotionCode?: string | null;
   paymentMethod: PaymentMethod;
   installmentRequested: boolean;
+  confirmationMessage?: string | null;
 }
 
 export interface PaymentSummary {

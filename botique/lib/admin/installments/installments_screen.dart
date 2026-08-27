@@ -261,7 +261,7 @@ class _InstallmentCard extends StatelessWidget {
   Widget _statusChip(InstallmentStatus status) {
     final (label, color) = switch (status) {
       InstallmentStatus.pendingApproval => ('Pending', QueensTouchColors.warning),
-      InstallmentStatus.approved => ('Approved', Colors.blue.shade700),
+      InstallmentStatus.approved => ('Approved', QueensTouchColors.plumLight),
       InstallmentStatus.active => ('Active', QueensTouchColors.success),
       InstallmentStatus.completed => ('Completed', QueensTouchColors.success),
       InstallmentStatus.rejected => ('Rejected', QueensTouchColors.danger),

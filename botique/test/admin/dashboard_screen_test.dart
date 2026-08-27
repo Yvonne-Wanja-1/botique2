@@ -114,8 +114,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('KSh 48,290.00'), findsOneWidget);
-    expect(find.text("KSh 1,840.00"), findsOneWidget);
+    expect(find.text('KSh 48,290'), findsOneWidget);
+    expect(find.text("KSh 1,840"), findsOneWidget);
     expect(find.text('Total Orders'), findsOneWidget);
     expect(find.text('Total Products'), findsOneWidget);
 
@@ -146,7 +146,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('KSh 0.00'), findsWidgets);
+    expect(find.text('KSh 0'), findsWidgets);
     expect(find.text('Low Stock Alerts'), findsNothing);
     expect(find.text('Recent Orders'), findsOneWidget);
     expect(find.text('No recent orders'), findsOneWidget);

@@ -36,7 +36,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('Rosé Dress'), findsOneWidget);
-    expect(find.text('KSh 50.00'), findsOneWidget);
+    expect(find.text('KSh 50'), findsOneWidget);
     expect(find.byIcon(Icons.checkroom), findsOneWidget);
   });
 }

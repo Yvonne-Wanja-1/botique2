@@ -154,8 +154,7 @@ class _CustomerShellState extends State<CustomerShell> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(28),
+                  ClipOval(
                     child: Opacity(
                       opacity: 0.9,
                       child: const Image(

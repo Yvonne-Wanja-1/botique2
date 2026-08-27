@@ -98,7 +98,7 @@ class _WishlistTile extends StatelessWidget {
                   const SnackBar(content: Text('Moved to cart')),
                 );
               },
-              child: const Text('Add'),
+              child: const Text('Add to Cart'),
             ),
           ],
         ),
