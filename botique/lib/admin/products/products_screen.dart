@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/theme/theme.dart';
+import '../../core/utils/currency.dart';
 import '../../core/utils/image_url.dart';
 import '../../core/widgets/dialogs.dart';
 import '../../core/widgets/empty_state.dart';
@@ -173,7 +174,7 @@ class _ProductRow extends StatelessWidget {
           children: [
             Text('SKU: ${product.id.toUpperCase()} · Stock: ${product.totalStock}'),
             Text(
-              '\$${product.effectivePrice.toStringAsFixed(2)}',
+              formatKsh(product.effectivePrice),
               style: const TextStyle(color: QueensTouchColors.plum, fontWeight: FontWeight.w600),
             ),
           ],

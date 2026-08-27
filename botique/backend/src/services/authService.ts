@@ -70,4 +70,8 @@ export class AuthService {
     if (!user) throw new UnauthorizedError('This account no longer exists');
     return user;
   }
+
+  async updateAvatar(userId: string, avatarUrl: string): Promise<UserRow> {
+    return this.userRepo.updateAvatar(userId, avatarUrl);
+  }
 }

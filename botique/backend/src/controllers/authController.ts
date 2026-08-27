@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import type { AuthService } from '../services/authService.js';
 import { principalId } from '../middleware/auth.js';
 import { ok } from '../utils/apiResponse.js';
+import { ValidationError } from '../utils/errors.js';
 
 export function authController(authService: AuthService) {
   return {
@@ -18,6 +19,12 @@ export function authController(authService: AuthService) {
       // JWT is stateless: the client discards the token. The endpoint exists so
       // clients can confirm a clean logout.
       ok(res, { loggedOut: true });
+    },
+    async updateAvatar(req: Request, res: Response): Promise<void> {
+      const file = (req as Request & { file?: Express.Multer.File }).file;
+      if (!file) throw new ValidationError('No avatar file provided');
+      const avatarUrl = `/images/${file.filename}`;
+      ok(res, await authService.updateAvatar(principalId(req), avatarUrl));
     },
   };
 }

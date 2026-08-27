@@ -4,14 +4,16 @@ import 'package:provider/provider.dart';
 import '../../core/animations/fashion_beauty_reveal.dart';
 import '../../core/theme/theme.dart';
 import '../../core/utils/currency.dart';
+import '../../core/utils/shipping.dart';
 import '../../core/widgets/dialogs.dart';
-import '../../data/mock/mock_commerce_repositories.dart';
 import '../../data/repositories/commerce_repository.dart';
 import '../../models/order.dart';
-import '../../models/promotion.dart';
 import '../../services/auth_service.dart';
 import '../../services/cart_service.dart';
 import '../orders/submit_payment_screen.dart';
+
+const String kPaybillNumber = '222111';
+const String kPaybillAccount = '65727';
 
 class CheckoutScreen extends StatefulWidget {
   const CheckoutScreen({super.key});
@@ -28,12 +30,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   final _addressController = TextEditingController();
   final _promoController = TextEditingController();
 
-  PaymentMethod _method = PaymentMethod.paybill;
   bool _installmentRequested = false;
   bool _processing = false;
 
-  Promotion? _appliedPromo;
-  double _discount = 0;
+  String? _promoCode;
 
   @override
   void initState() {
@@ -56,19 +56,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     super.dispose();
   }
 
-  void _applyPromo() async {
-    final repo = MockPromotionRepository();
-    final promo = await repo.findByCode(_promoController.text.trim());
-    if (!mounted) return;
-    if (promo == null || !promo.isActive) {
-      showErrorSnack(context, 'Invalid or inactive promo code');
+  void _applyPromo() {
+    final code = _promoController.text.trim();
+    if (code.isEmpty) {
+      showErrorSnack(context, 'Enter a promo code first');
       return;
     }
-    setState(() {
-      _appliedPromo = promo;
-      _discount = promo.discountFor(_subtotal);
-    });
-    showSuccessSnack(context, 'Promo ${promo.code} applied');
+    setState(() => _promoCode = code);
+    showSuccessSnack(context, 'Promo $code will be applied at checkout');
   }
 
   double get _subtotal => context.read<CartService>().subtotal;
@@ -76,8 +71,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   @override
   Widget build(BuildContext context) {
     final cart = context.read<CartService>();
-    final shipping = _subtotal >= 100 ? 0.0 : 8.0;
-    final total = _subtotal - _discount + shipping;
+    final shipping = shippingFor(_subtotal);
+    final total = _subtotal + shipping;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Checkout')),
@@ -145,7 +140,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 ),
               ],
             ),
-            if (_appliedPromo != null) ...[
+            if (_promoCode != null) ...[
               const SizedBox(height: 8),
               Row(
                 children: [
@@ -156,15 +151,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    '${_appliedPromo!.code} applied',
+                    '$_promoCode applied',
                     style: const TextStyle(color: QueensTouchColors.success),
                   ),
                   const Spacer(),
                   TextButton(
-                    onPressed: () => setState(() {
-                      _appliedPromo = null;
-                      _discount = 0;
-                    }),
+                    onPressed: () => setState(() => _promoCode = null),
                     child: const Text('Remove'),
                   ),
                 ],
@@ -197,7 +189,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                               ),
                             ),
                             Text(
-                              '\$${item.lineTotal.toStringAsFixed(2)}',
+                              formatKsh(item.lineTotal),
                               style: const TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
@@ -207,45 +199,66 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         ),
                       ),
                     const Divider(height: 16),
-                    _Row('Subtotal', '\$${_subtotal.toStringAsFixed(2)}'),
-                    if (_discount > 0)
-                      _Row('Discount', '-\$${_discount.toStringAsFixed(2)}'),
+                    _Row('Subtotal', formatKsh(_subtotal)),
                     _Row(
                       'Shipping',
-                      shipping == 0
-                          ? 'Free'
-                          : '\$${shipping.toStringAsFixed(2)}',
+                      shipping == 0 ? 'Free' : formatKsh(shipping),
                     ),
                     const Divider(height: 16),
-                    _Row(
-                      'Total',
-                      '\$${total.toStringAsFixed(2)}',
-                      isTotal: true,
-                    ),
+                    _Row('Total', formatKsh(total), isTotal: true),
                   ],
                 ),
               ),
             ),
             const SizedBox(height: 24),
             Text(
-              'Payment',
+              'Payment — M-Pesa Paybill',
               style: Theme.of(
                 context,
               ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 8),
-            RadioGroup<PaymentMethod>(
-              groupValue: _method,
-              onChanged: (v) => setState(() => _method = v!),
-              child: Column(
-                children: [
-                  for (final method in PaymentMethod.values)
-                    RadioListTile<PaymentMethod>(
-                      title: Text(_methodLabel(method)),
-                      value: method,
-                      dense: true,
-                    ),
-                ],
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _InfoRow(label: 'Paybill Number', value: kPaybillNumber),
+                    const SizedBox(height: 6),
+                    _InfoRow(label: 'Account Number', value: kPaybillAccount),
+                    const SizedBox(height: 12),
+                    const Divider(height: 1),
+                    const SizedBox(height: 12),
+                    for (final (i, step) in const [
+                      'Make the payment using the Paybill number above on your phone.',
+                      'Return to Queens\' Touch.',
+                      'Paste the Family Bank M-Pesa confirmation message into the payment proof field.',
+                      'Submit the payment proof.',
+                      'Your payment stays pending verification until an authorized admin confirms it.',
+                    ].indexed)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.check_circle,
+                              size: 16,
+                              color: QueensTouchColors.gold,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                '${i + 1}. $step',
+                                style: const TextStyle(fontSize: 13),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 8),
@@ -268,7 +281,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         width: 20,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: Colors.white,
+                          color: QueensTouchColors.onGold,
                         ),
                       )
                     : const Text('Place Order'),
@@ -283,6 +296,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   Future<void> _placeOrder(CartService cart, double total) async {
     if (!_formKey.currentState!.validate()) return;
+    if (cart.isEmpty) {
+      showErrorSnack(context, 'Your cart is empty');
+      return;
+    }
     setState(() => _processing = true);
 
     final payload = CheckoutPayload(
@@ -290,11 +307,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       customerPhone: _phoneController.text.trim(),
       customerEmail: _emailController.text.trim(),
       shippingAddress: _addressController.text.trim(),
-      paymentMethod: _method,
+      paymentMethod: PaymentMethod.paybill,
       items: [
         for (final item in cart.items)
           OrderItem(
             productId: item.product.id,
+            variantId: item.variant?.id,
             productName: item.product.name,
             price: item.product.effectivePrice,
             quantity: item.quantity,
@@ -302,29 +320,26 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           ),
       ],
       subtotal: _subtotal,
-      discount: _discount,
-      promotionCode: _appliedPromo?.code,
+      promotionCode: _promoCode,
       installmentRequested: _installmentRequested,
     );
 
     final repo = context.read<OrderRepository>();
-    final order = await repo.placeOrder(payload);
-    await cart.clear();
+    try {
+      final order = await repo.placeOrder(payload);
+      await cart.clear();
 
-    if (!mounted) return;
-    setState(() => _processing = false);
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => _ConfirmationScreen(order: order)),
-    );
+      if (!mounted) return;
+      setState(() => _processing = false);
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => _ConfirmationScreen(order: order)),
+      );
+    } on Exception catch (e) {
+      if (!mounted) return;
+      setState(() => _processing = false);
+      showErrorSnack(context, 'Could not place your order: $e');
+    }
   }
-
-  String _methodLabel(PaymentMethod m) => switch (m) {
-    PaymentMethod.cashOnDelivery => 'Cash on Delivery',
-    PaymentMethod.bankTransfer => 'Bank Transfer',
-    PaymentMethod.paybill => 'Paybill',
-    PaymentMethod.card => 'Card Payment',
-    PaymentMethod.installment => 'Installment',
-  };
 }
 
 class _Row extends StatelessWidget {
@@ -351,11 +366,29 @@ class _Row extends StatelessWidget {
             value,
             style: TextStyle(
               fontWeight: isTotal ? FontWeight.w700 : FontWeight.w600,
-              color: isTotal ? QueensTouchColors.plum : null,
+              color: isTotal ? QueensTouchColors.gold : null,
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  const _InfoRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: const TextStyle(color: QueensTouchColors.textMuted)),
+        Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
+      ],
     );
   }
 }
@@ -415,7 +448,7 @@ class _ConfirmationScreen extends StatelessWidget {
                         style: const TextStyle(
                           fontWeight: FontWeight.w700,
                           fontSize: 18,
-                          color: QueensTouchColors.plum,
+                          color: QueensTouchColors.gold,
                         ),
                       ),
                       const Divider(height: 24),
@@ -427,7 +460,7 @@ class _ConfirmationScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '\$${order.total.toStringAsFixed(2)}',
+                        formatKsh(order.total),
                         style: const TextStyle(
                           fontWeight: FontWeight.w700,
                           fontSize: 20,
@@ -447,35 +480,31 @@ class _ConfirmationScreen extends StatelessWidget {
                           ),
                         ),
                       ],
-                      if (order.paymentMethod == PaymentMethod.paybill ||
-                          order.paymentMethod ==
-                              PaymentMethod.bankTransfer) ...[
-                        const Divider(height: 24),
-                        const Text(
-                          'How to pay',
-                          style: TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                        const SizedBox(height: 8),
-                        const _Row('Paybill', '222111'),
-                        const _Row('Account', '65727'),
-                        _Row('Total', formatKsh(order.total), isTotal: true),
-                        const SizedBox(height: 12),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            onPressed: () => Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => SubmitPaymentScreen(
-                                  orderId: order.id,
-                                  orderNumber: order.orderNumber,
-                                  amount: order.total,
-                                ),
+                      const Divider(height: 24),
+                      const Text(
+                        'How to pay',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 8),
+                      const _Row('Paybill Number', kPaybillNumber),
+                      const _Row('Account Number', kPaybillAccount),
+                      _Row('Total', formatKsh(order.total), isTotal: true),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => SubmitPaymentScreen(
+                                orderId: order.id,
+                                orderNumber: order.orderNumber,
+                                amount: order.total,
                               ),
                             ),
-                            child: const Text('Pay'),
                           ),
+                          child: const Text('Submit Payment Proof'),
                         ),
-                      ],
+                      ),
                     ],
                   ),
                 ),

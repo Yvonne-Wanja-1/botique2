@@ -180,7 +180,7 @@ class _FlyOverlayState extends State<_FlyOverlay> with SingleTickerProviderState
                               color: QueensTouchColors.plum,
                               child: const Icon(
                                 Icons.shopping_bag_outlined,
-                                color: Colors.white,
+                                color: QueensTouchColors.onGold,
                               ),
                             )
                           : Image.network(
@@ -190,7 +190,7 @@ class _FlyOverlayState extends State<_FlyOverlay> with SingleTickerProviderState
                                 color: QueensTouchColors.plum,
                                 child: const Icon(
                                   Icons.shopping_bag_outlined,
-                                  color: Colors.white,
+                                  color: QueensTouchColors.onGold,
                                 ),
                               ),
                             ),

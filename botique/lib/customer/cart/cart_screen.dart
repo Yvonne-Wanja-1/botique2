@@ -6,6 +6,8 @@ import '../../core/animations/product_image_reveal.dart';
 import '../../core/animations/product_presentation.dart';
 import '../../core/animations/qts_animation.dart';
 import '../../core/theme/theme.dart';
+import '../../core/utils/currency.dart';
+import '../../core/utils/shipping.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../models/cart.dart';
 import '../../services/cart_service.dart';
@@ -115,9 +117,9 @@ class _CartItemTile extends StatelessWidget {
                     ),
                   const SizedBox(height: 6),
                   Text(
-                    '\$${item.product.effectivePrice.toStringAsFixed(2)}',
+                    formatKsh(item.product.effectivePrice),
                     style: const TextStyle(
-                      color: QueensTouchColors.plum,
+                      color: QueensTouchColors.gold,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -181,7 +183,7 @@ class _QtyButton extends StatelessWidget {
         width: 28,
         height: 28,
         decoration: BoxDecoration(
-          border: Border.all(color: const Color(0xFFE4D5DA)),
+          border: Border.all(color: QueensTouchColors.surfaceBorder),
           borderRadius: BorderRadius.circular(6),
         ),
         child: Icon(icon, size: 16),
@@ -197,12 +199,12 @@ class _CartSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final shipping = cart.subtotal >= 100 ? 0.0 : 8.0;
+    final shipping = shippingFor(cart.subtotal);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: Color(0xFFEEDFE4))),
+        color: QueensTouchColors.surfaceLight,
+        border: Border(top: BorderSide(color: QueensTouchColors.surfaceBorder)),
       ),
       child: SafeArea(
         child: Column(
@@ -212,14 +214,14 @@ class _CartSummary extends StatelessWidget {
               label: 'Subtotal',
               value: AnimatedCounter(
                 value: cart.subtotal,
-                format: (v) => '\$${v.toStringAsFixed(2)}',
+                format: formatKsh,
                 style: const TextStyle(fontWeight: FontWeight.w600),
               ),
             ),
             _SummaryRow(
               label: 'Shipping',
               value: Text(
-                shipping == 0 ? 'Free' : '\$${shipping.toStringAsFixed(2)}',
+                shipping == 0 ? 'Free' : formatKsh(shipping),
                 style: const TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 14,
@@ -232,11 +234,11 @@ class _CartSummary extends StatelessWidget {
               isTotal: true,
               value: AnimatedCounter(
                 value: cart.subtotal + shipping,
-                format: (v) => '\$${v.toStringAsFixed(2)}',
+                format: formatKsh,
                 style: TextStyle(
                   fontWeight: FontWeight.w700,
                   fontSize: 16,
-                  color: QueensTouchColors.plum,
+                  color: QueensTouchColors.gold,
                 ),
               ),
             ),

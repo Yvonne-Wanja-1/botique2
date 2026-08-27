@@ -371,7 +371,7 @@ class _InstallmentCard extends StatelessWidget {
                       builder: (context, v, _) => LinearProgressIndicator(
                         value: v,
                         minHeight: 8,
-                        backgroundColor: const Color(0xFFEEDFE4),
+                        backgroundColor: const Color(0xFFE8DED7),
                         color: QueensTouchColors.success,
                       ),
                     ),

@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../core/theme/theme.dart';
+import '../core/utils/image_url.dart';
 import '../models/user.dart';
 import '../services/auth_service.dart';
 import '../admin/dashboard/dashboard_screen.dart';
@@ -92,14 +93,19 @@ class _UserMenu extends StatelessWidget {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthService>();
     final user = auth.currentUser;
+    final avatarUrl = user?.avatarUrl;
+    final hasAvatar = avatarUrl != null && avatarUrl.isNotEmpty;
     return PopupMenuButton<String>(
       icon: CircleAvatar(
         radius: 16,
         backgroundColor: QueensTouchColors.plum,
-        child: Text(
-          user?.name.characters.first ?? '?',
-          style: const TextStyle(color: Colors.white, fontSize: 12),
-        ),
+        backgroundImage: hasAvatar ? NetworkImage(resolveImageUrl(avatarUrl)) : null,
+        child: hasAvatar
+            ? null
+            : Text(
+                user?.name.characters.first ?? '?',
+                style: const TextStyle(color: QueensTouchColors.onGold, fontSize: 12),
+              ),
       ),
       onSelected: (value) {
         if (value == 'logout') {
@@ -268,7 +274,7 @@ class _NavDestination extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 14,
-                    color: selected ? QueensTouchColors.plumDark : QueensTouchColors.textDark,
+                    color: selected ? QueensTouchColors.plum : QueensTouchColors.textDark,
                     fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                   ),
                 ),

@@ -35,7 +35,7 @@ void showSuccessSnack(BuildContext context, String message) {
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
       content: Text(message),
-      backgroundColor: const Color(0xFF2E7D55),
+      backgroundColor: const Color(0xFF71816C),
       behavior: SnackBarBehavior.floating,
     ),
   );
@@ -45,7 +45,7 @@ void showErrorSnack(BuildContext context, String message) {
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
       content: Text(message),
-      backgroundColor: const Color(0xFFC0392B),
+      backgroundColor: const Color(0xFFA6535C),
       behavior: SnackBarBehavior.floating,
     ),
   );

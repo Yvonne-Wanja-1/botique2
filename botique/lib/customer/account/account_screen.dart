@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/theme/theme.dart';
 import '../../core/utils/currency.dart';
+import '../../core/utils/image_url.dart';
+import '../../core/widgets/dialogs.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/loading_view.dart';
 import '../../core/animations/qts_animation.dart';
@@ -30,14 +33,7 @@ class AccountScreen extends StatelessWidget {
               padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
-                  CircleAvatar(
-                    radius: 28,
-                    backgroundColor: QueensTouchColors.plum,
-                    child: Text(
-                      user.name.characters.first,
-                      style: const TextStyle(color: Colors.white, fontSize: 20),
-                    ),
-                  ),
+                  _Avatar(radius: 28, user: user),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Column(
@@ -563,44 +559,205 @@ class NotificationsScreen extends StatelessWidget {
       };
 }
 
-class ProfileEditScreen extends StatelessWidget {
-  const ProfileEditScreen({super.key});
+/// Displays the user's profile picture (falling back to their initial), with a
+/// small camera badge to signal that it can be changed from Edit Profile.
+class _Avatar extends StatelessWidget {
+  const _Avatar({required this.user, this.radius = 28});
+
+  final dynamic user;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) {
+    final avatarUrl = user.avatarUrl as String?;
+    final hasImage = avatarUrl != null && avatarUrl.isNotEmpty;
+    return Stack(
+      children: [
+        CircleAvatar(
+          radius: radius,
+          backgroundColor: QueensTouchColors.plum,
+          backgroundImage: hasImage ? NetworkImage(resolveImageUrl(avatarUrl)) : null,
+          child: hasImage
+              ? null
+              : Text(
+                  user.name.characters.first,
+                  style: TextStyle(
+                    color: QueensTouchColors.onGold,
+                    fontSize: radius * 0.72,
+                  ),
+                ),
+        ),
+        Positioned(
+          right: 0,
+          bottom: 0,
+          child: Container(
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              color: QueensTouchColors.surfaceLight,
+              shape: BoxShape.circle,
+              border: Border.all(color: QueensTouchColors.plum),
+            ),
+            child: Icon(
+              Icons.camera_alt,
+              size: radius * 0.45,
+              color: QueensTouchColors.plum,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class ProfileEditScreen extends StatefulWidget {
+  const ProfileEditScreen({super.key, this.picker});
+
+  final ImagePicker? picker;
+
+  @override
+  State<ProfileEditScreen> createState() => _ProfileEditScreenState();
+}
+
+class _ProfileEditScreenState extends State<ProfileEditScreen> {
+  late final ImagePicker _picker;
+  late final TextEditingController _nameController;
+  late final TextEditingController _phoneController;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _picker = widget.picker ?? ImagePicker();
+    final user = context.read<AuthService>().currentUser!;
+    _nameController = TextEditingController(text: user.name);
+    _phoneController = TextEditingController(text: user.phone);
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _phoneController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _changePhoto() async {
+    final auth = context.read<AuthService>();
+    final XFile? file;
+    try {
+      file = await _picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+    } catch (_) {
+      if (mounted) showErrorSnack(context, 'Could not open the photo library');
+      return;
+    }
+    if (file == null) return;
+
+    final bytes = await file.readAsBytes();
+    if (bytes.length > 5 * 1024 * 1024) {
+      if (mounted) showErrorSnack(context, 'Image must be under 5 MB');
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      await auth.uploadAvatar(
+        bytes: bytes,
+        filename: file.name,
+        mimeType: file.mimeType ?? 'image/jpeg',
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Profile picture updated')),
+        );
+      }
+    } catch (e) {
+      if (mounted) showErrorSnack(context, 'Could not upload photo: $e');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _save() async {
+    final auth = context.read<AuthService>();
+    await auth.updateProfile(
+      name: _nameController.text,
+      phone: _phoneController.text,
+    );
+    if (!mounted) return;
+    Navigator.of(context).pop();
+  }
 
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthService>();
     final user = auth.currentUser!;
-    final nameController = TextEditingController(text: user.name);
-    final phoneController = TextEditingController(text: user.phone);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Edit Profile')),
-      body: Padding(
+      body: ListView(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(labelText: 'Full name'),
+        children: [
+          Center(
+            child: GestureDetector(
+              onTap: _saving ? null : _changePhoto,
+              child: Stack(
+                children: [
+                  _Avatar(user: user, radius: 40),
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: QueensTouchColors.plum,
+                        shape: BoxShape.circle,
+                      ),
+                      child: _saving
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: QueensTouchColors.onGold,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.photo_camera,
+                              size: 16,
+                              color: QueensTouchColors.onGold,
+                            ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: phoneController,
-              decoration: const InputDecoration(labelText: 'Phone'),
+          ),
+          const SizedBox(height: 8),
+          const Center(
+            child: Text(
+              'Tap the camera to change your photo',
+              style: TextStyle(fontSize: 12, color: QueensTouchColors.textMuted),
             ),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: () {
-                auth.updateProfile(
-                  name: nameController.text,
-                  phone: phoneController.text,
-                );
-                Navigator.of(context).pop();
-              },
-              child: const Text('Save Changes'),
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 24),
+          TextField(
+            controller: _nameController,
+            decoration: const InputDecoration(labelText: 'Full name'),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _phoneController,
+            decoration: const InputDecoration(labelText: 'Phone'),
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton(
+            onPressed: _save,
+            child: const Text('Save Changes'),
+          ),
+        ],
       ),
     );
   }

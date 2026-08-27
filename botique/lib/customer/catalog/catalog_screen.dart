@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/theme/theme.dart';
 import '../../core/theme/responsive.dart';
+import '../../core/utils/currency.dart';
 import '../../core/animations/stagger_reveal.dart';
 import '../../core/widgets/product_card.dart';
 import '../../core/widgets/loading_view.dart';
@@ -239,8 +240,8 @@ class _FilterSheetState extends State<_FilterSheet> {
                     max: 200,
                     divisions: 20,
                     labels: RangeLabels(
-                      '\$${_priceRange.start.round()}',
-                      '\$${_priceRange.end.round()}',
+                      formatKsh(_priceRange.start),
+                      formatKsh(_priceRange.end),
                     ),
                     onChanged: (v) => setState(() => _priceRange = v),
                   ),

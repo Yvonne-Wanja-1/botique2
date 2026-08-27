@@ -64,7 +64,7 @@ class OrderTimeline extends StatelessWidget {
                     top: 14,
                     child: Container(
                       height: 3,
-                      color: const Color(0xFFEEDFE4),
+                      color: const Color(0xFFE8DED7),
                     ),
                   ),
                   Positioned(
@@ -101,11 +101,11 @@ class OrderTimeline extends StatelessWidget {
                               shape: BoxShape.circle,
                               color: i < _reached
                                   ? QueensTouchColors.plum
-                                  : Colors.white,
+                                  : QueensTouchColors.surfaceLight,
                               border: Border.all(
                                 color: i < _reached
                                     ? QueensTouchColors.plum
-                                    : const Color(0xFFE4D5DA),
+                                    : QueensTouchColors.surfaceBorder,
                                 width: 2,
                               ),
                             ),
@@ -113,7 +113,7 @@ class OrderTimeline extends StatelessWidget {
                                 ? const Icon(
                                     Icons.check,
                                     size: 14,
-                                    color: Colors.white,
+                                    color: QueensTouchColors.onGold,
                                   )
                                 : null,
                           ),
@@ -185,7 +185,7 @@ class PaymentStatusFlow extends StatelessWidget {
               child: Container(
                 height: 3,
                 margin: const EdgeInsets.symmetric(horizontal: 6),
-                color: i < reached ? QueensTouchColors.success : const Color(0xFFEEDFE4),
+                color: i < reached ? QueensTouchColors.success : const Color(0xFFE8DED7),
               ),
             ),
           Column(

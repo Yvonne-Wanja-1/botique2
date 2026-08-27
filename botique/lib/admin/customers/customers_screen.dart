@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/theme.dart';
+import '../../core/utils/currency.dart';
 import '../../core/widgets/dialogs.dart';
 
 class _Customer {
@@ -83,7 +84,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
-                        '\$${c.totalSpent.toStringAsFixed(2)}',
+                        formatKsh(c.totalSpent),
                         style: const TextStyle(fontWeight: FontWeight.w700, color: QueensTouchColors.plum),
                       ),
                       Text('${c.orders} orders', style: const TextStyle(fontSize: 12, color: QueensTouchColors.textMuted)),
@@ -113,7 +114,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
             Text('Email: ${c.email}'),
             Text('Phone: ${c.phone}'),
             Text('Joined: ${c.joined}'),
-            Text('Total spent: \$${c.totalSpent.toStringAsFixed(2)}'),
+            Text('Total spent: ${formatKsh(c.totalSpent)}'),
             Text('Orders: ${c.orders}'),
             const Divider(height: 24),
             Row(

@@ -15,7 +15,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _storeEmail = TextEditingController(text: 'hello@queenstouch.com');
   final _whatsapp = TextEditingController(text: '+234 800 000 0000');
   final _lowStock = TextEditingController(text: '5');
-  final _currency = TextEditingController(text: 'USD');
+  final _currency = TextEditingController(text: 'KSh');
   final _taxRate = TextEditingController(text: '7.5');
 
   @override

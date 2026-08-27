@@ -7,6 +7,7 @@ import '../../core/animations/product_presentation.dart';
 import '../../core/animations/stagger_reveal.dart';
 import '../../core/theme/responsive.dart';
 import '../../core/theme/theme.dart';
+import '../../core/utils/currency.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/loading_view.dart';
 import '../../core/widgets/product_card.dart';
@@ -301,7 +302,7 @@ class _CollectionBanner extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    '\$${product.effectivePrice.toStringAsFixed(2)}',
+                    formatKsh(product.effectivePrice),
                     style: const TextStyle(
                       color: QueensTouchColors.goldLight,
                       fontWeight: FontWeight.w700,

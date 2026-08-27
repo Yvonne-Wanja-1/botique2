@@ -93,10 +93,10 @@ class _ShadeChip extends StatelessWidget {
         decoration: BoxDecoration(
           color: selected
               ? QueensTouchColors.blushLight
-              : Colors.white,
+              : QueensTouchColors.surfaceLight,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: selected ? color : const Color(0xFFE4D5DA),
+            color: selected ? color : QueensTouchColors.surfaceBorder,
             width: selected ? 2 : 1,
           ),
         ),

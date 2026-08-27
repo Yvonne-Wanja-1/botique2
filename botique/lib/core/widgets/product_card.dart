@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../models/product.dart';
 import '../../core/theme/theme.dart';
+import '../../core/utils/currency.dart';
 import '../../services/wishlist_service.dart';
 import '../animations/press_scale.dart';
 import '../animations/product_image_reveal.dart';
@@ -89,7 +90,7 @@ class ProductCard extends StatelessWidget {
                       child: const Text(
                         'NEW',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: QueensTouchColors.onGold,
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
                         ),
@@ -121,7 +122,7 @@ class ProductCard extends StatelessWidget {
                 Row(
                   children: [
                     Text(
-                      '\$${product.effectivePrice.toStringAsFixed(2)}',
+                      formatKsh(product.effectivePrice),
                       style: const TextStyle(
                         fontWeight: FontWeight.w700,
                         color: QueensTouchColors.plum,
@@ -130,7 +131,7 @@ class ProductCard extends StatelessWidget {
                     if (product.hasDiscount) ...[
                       const SizedBox(width: 6),
                       Text(
-                        '\$${product.price.toStringAsFixed(2)}',
+                        formatKsh(product.price),
                         style: TextStyle(
                           decoration: TextDecoration.lineThrough,
                           color: Colors.grey.shade500,
