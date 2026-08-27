@@ -73,7 +73,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
                   leading: CircleAvatar(
                     backgroundColor: QueensTouchColors.blushLight,
                     child: Text(
-                      c.name.characters.first,
+                      c.name.isNotEmpty ? c.name[0] : '?',
                       style: const TextStyle(color: QueensTouchColors.plum),
                     ),
                   ),

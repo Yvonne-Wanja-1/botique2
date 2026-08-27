@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { hashPassword, verifyPassword } from './password.js';
 
 describe('password hashing', () => {
-  it('hashes a password to an argon2id string', async () => {
+  it('hashes a password to a scrypt string', async () => {
     const hash = await hashPassword('SuperSecret42');
-    expect(hash).toMatch(/^\$argon2id\$/);
+    expect(hash).toMatch(/^scrypt:/);
     expect(hash).not.toContain('SuperSecret42');
   });
 

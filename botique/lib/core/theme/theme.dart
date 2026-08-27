@@ -1,37 +1,33 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-/// Queens' Touch premium dark palette.
+/// Queens' Touch Gold + Purple palette.
 ///
-/// The constant names are kept for source compatibility with the rest of the
-/// app while the values implement the refined quiet-luxury look:
-/// warm black surfaces, deep espresso accents, warm ivory text, muted gold accents.
+/// Dark purple surfaces, bold gold accents, warm white text.
 class QueensTouchColors {
   QueensTouchColors._();
 
-  static const Color plum = Color(0xFF2B211E);
-  static const Color plumDark = Color(0xFF0F0D0B);
-  static const Color plumLight = Color(0xFF3D3228);
-  static const Color blush = Color(0xFF24201F);
-  static const Color blushLight = Color(0xFF1F1B18);
-  static const Color gold = Color(0xFFC6A15B);
-  static const Color goldLight = Color(0xFFFAF7F2);
-  static const Color cream = Color(0xFF1A1611);
-  static const Color textDark = Color(0xFFFAF7F2);
-  static const Color textMuted = Color(0xFF766C67);
+  static const Color plum = Color(0xFFD4AF37);
+  static const Color plumDark = Color(0xFF0E0A1A);
+  static const Color plumLight = Color(0xFF3D1F5C);
+  static const Color blush = Color(0xFF1A0F2E);
+  static const Color blushLight = Color(0xFF130B22);
+  static const Color gold = Color(0xFFD4AF37);
+  static const Color goldLight = Color(0xFFFFF8E7);
+  static const Color cream = Color(0xFF110D1F);
+  static const Color textDark = Color(0xFFFFF8E7);
+  static const Color textMuted = Color(0xFF9B8DB5);
   static const Color success = Color(0xFF71816C);
   static const Color danger = Color(0xFFA6535C);
-  static const Color warning = Color(0xFFC6A15B);
-  static const Color surfaceLight = Color(0xFF2B211E);
-  static const Color surfaceBorder = Color(0xFF3D3228);
-  static const Color onGold = Color(0xFFFAF7F2);
+  static const Color warning = Color(0xFFD4AF37);
+  static const Color surfaceLight = Color(0xFF1E1435);
+  static const Color surfaceBorder = Color(0xFF2E1F4A);
+  static const Color onGold = Color(0xFF1A0F2E);
 
-  // Semantic aliases for the Quiet Luxury spec.
-  static const Color deepEspresso = Color(0xFF2B211E);
-  static const Color warmIvory = Color(0xFFFAF7F2);
-  static const Color dustyRose = Color(0xFFB76E79);
-  static const Color softTaupe = Color(0xFFE8DED7);
-  static const Color richCharcoal = Color(0xFF24201F);
+  // Semantic aliases.
+  static const Color deepPurple = Color(0xFF110D1F);
+  static const Color royalPurple = Color(0xFF2A1547);
+  static const Color lavender = Color(0xFF9B8DB5);
 }
 
 class QueensTouchTheme {
@@ -42,10 +38,10 @@ class QueensTouchTheme {
       useMaterial3: true,
       brightness: Brightness.dark,
       colorScheme: ColorScheme.fromSeed(
-        seedColor: QueensTouchColors.plum,
+        seedColor: QueensTouchColors.gold,
         brightness: Brightness.dark,
-        primary: QueensTouchColors.plum,
-        secondary: QueensTouchColors.gold,
+        primary: QueensTouchColors.gold,
+        secondary: QueensTouchColors.royalPurple,
         surface: QueensTouchColors.surfaceLight,
       ),
       scaffoldBackgroundColor: QueensTouchColors.cream,
@@ -87,7 +83,7 @@ class QueensTouchTheme {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: QueensTouchColors.plum,
+          backgroundColor: QueensTouchColors.gold,
           foregroundColor: QueensTouchColors.onGold,
           minimumSize: const Size(48, 48),
           shape: RoundedRectangleBorder(
@@ -97,12 +93,17 @@ class QueensTouchTheme {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: QueensTouchColors.goldLight,
+          foregroundColor: QueensTouchColors.gold,
           side: const BorderSide(color: QueensTouchColors.gold),
           minimumSize: const Size(48, 48),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: QueensTouchColors.gold,
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(

@@ -143,6 +143,19 @@ class _CampaignHero extends StatelessWidget {
                       ),
                     ),
                     Positioned(
+                      right: 16,
+                      top: 16,
+                      child: Opacity(
+                        opacity: 0.2,
+                        child: Image(
+                          image: const AssetImage('lib/assets/images/icon.jpeg'),
+                          width: 80,
+                          height: 80,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ),
+                    Positioned(
                       left: 20,
                       right: 20,
                       bottom: 24,

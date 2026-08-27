@@ -103,7 +103,7 @@ class _UserMenu extends StatelessWidget {
         child: hasAvatar
             ? null
             : Text(
-                user?.name.characters.first ?? '?',
+                user?.name.isNotEmpty == true ? user!.name[0] : '?',
                 style: const TextStyle(color: QueensTouchColors.onGold, fontSize: 12),
               ),
       ),

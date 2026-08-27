@@ -219,9 +219,9 @@ class _CartSummary extends StatelessWidget {
               ),
             ),
             _SummaryRow(
-              label: 'Shipping',
+              label: 'Delivery Fee',
               value: Text(
-                shipping == 0 ? 'Free' : formatKsh(shipping),
+                formatKsh(shipping),
                 style: const TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 14,

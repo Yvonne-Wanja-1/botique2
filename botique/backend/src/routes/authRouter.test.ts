@@ -39,7 +39,7 @@ describe('auth API', () => {
     expect(rows.rowCount).toBe(1);
     const hash = String(rows.rows[0].password_hash);
     expect(hash).not.toBe(newCustomer.password);
-    expect(hash).toMatch(/^\$argon2/);
+    expect(hash).toMatch(/^scrypt:/);
   });
 
   it('rejects a duplicate email', async () => {
