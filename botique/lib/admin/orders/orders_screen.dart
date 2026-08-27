@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/theme/theme.dart';
+import '../../core/utils/currency.dart';
 import '../../core/widgets/dialogs.dart';
 import '../../models/order.dart';
 import '../../models/user.dart';
@@ -207,7 +208,7 @@ class _OrderCard extends StatelessWidget {
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('${order.items.length} items · \$${order.total.toStringAsFixed(2)}'),
+            Text('${order.items.length} items · ${formatKsh(order.total)}'),
             Text(
               '${order.status.label} · ${order.paymentStatus.label}',
               style: TextStyle(

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -55,7 +56,7 @@ void main() {
       expect(meCalled, isTrue);
     });
 
-    test('clears session when the restored token is rejected with 401', () async {
+    test('keeps the cached session when the restored token is rejected with 401', () async {
       final mock = MockClient((request) async {
         return http.Response(
             '{"success": false, "error": {"code": "UNAUTHORIZED", "message": "expired"}}', 401,
@@ -68,14 +69,32 @@ void main() {
 
       await auth.restoreSession();
 
-      expect(auth.status, AuthStatus.unauthenticated);
-      expect(auth.currentUser, isNull);
-      expect(storage.token, isNull);
+      expect(auth.status, AuthStatus.authenticated);
+      expect(auth.currentUser!.email, 'amara@example.com');
+      expect(storage.token, 'expired-token');
     });
 
     test('keeps the cached session on network failure', () async {
       final mock = MockClient((request) async {
         throw http.ClientException('offline');
+      });
+      final storage = InMemoryTokenStorage()
+        ..token = 'tok-abc'
+        ..userJson = jsonEncode(_userJson);
+      final auth = AuthService(apiClient: _api(mock), storage: storage);
+
+      await auth.restoreSession();
+
+      expect(auth.status, AuthStatus.authenticated);
+      expect(auth.currentUser!.email, 'amara@example.com');
+      expect(storage.token, 'tok-abc');
+    });
+
+    test('keeps the cached session when /me returns 403', () async {
+      final mock = MockClient((request) async {
+        return http.Response(
+            '{"success": false, "error": {"code": "FORBIDDEN", "message": "access denied"}}', 403,
+            headers: {'content-type': 'application/json'});
       });
       final storage = InMemoryTokenStorage()
         ..token = 'tok-abc'
@@ -241,6 +260,58 @@ void main() {
       expect(auth.currentUser!.phone, '+234 000 000 0000');
       final persisted = jsonDecode(storage.userJson!) as Map<String, dynamic>;
       expect(persisted['fullName'], 'Amara Okafor II');
+    });
+  });
+
+  group('uploadAvatar', () {
+    test('posts the avatar multipart and persists the returned URL', () async {
+      final storage = InMemoryTokenStorage()
+        ..token = 'tok-abc'
+        ..userJson = jsonEncode(_userJson);
+      final mock = MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/api/auth/avatar');
+        expect(request.headers['authorization'], 'Bearer tok-abc');
+        final body = request.bodyBytes;
+        final bodyText = String.fromCharCodes(body);
+        expect(bodyText, contains('name="avatar"'));
+        expect(bodyText, contains('filename="photo.jpg"'));
+        return http.Response(
+          '{"success": true, "data": {"id": "u-1", "fullName": "Amara Okafor",'
+          ' "email": "amara@example.com", "phone": "+234 801 234 5678",'
+          ' "role": "customer", "avatarUrl": "/images/avatar-abc.jpg"}}',
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+      final auth = AuthService(apiClient: _api(mock), storage: storage);
+      await auth.restoreSession();
+
+      final avatarUrl = await auth.uploadAvatar(
+        bytes: Uint8List.fromList([137, 80, 78, 71]),
+        filename: 'photo.jpg',
+        mimeType: 'image/jpeg',
+      );
+
+      expect(avatarUrl, '/images/avatar-abc.jpg');
+      expect(auth.currentUser!.avatarUrl, '/images/avatar-abc.jpg');
+      final persisted = jsonDecode(storage.userJson!) as Map<String, dynamic>;
+      expect(persisted['avatarUrl'], '/images/avatar-abc.jpg');
+    });
+
+    test('rejects upload in mock mode without a backend', () async {
+      final auth = AuthService(storage: InMemoryTokenStorage());
+      await auth.loginAs(DemoAccounts.accounts.first);
+
+      await expectLater(
+        auth.uploadAvatar(
+          bytes: Uint8List.fromList([1, 2, 3]),
+          filename: 'photo.jpg',
+          mimeType: 'image/jpeg',
+        ),
+        throwsA(isA<ApiException>()),
+      );
+      expect(auth.currentUser!.avatarUrl, isNull);
     });
   });
 

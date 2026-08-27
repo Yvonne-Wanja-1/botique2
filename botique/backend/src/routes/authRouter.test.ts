@@ -152,6 +152,36 @@ describe('auth API', () => {
     expect(res.status).toBe(200);
     expect(res.body.data.loggedOut).toBe(true);
   });
+
+  it('updates the authenticated user avatar', async () => {
+    const login = await request(app).post('/api/auth/login').send({
+      email: newCustomer.email,
+      password: newCustomer.password,
+    });
+    const png = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+      'base64',
+    );
+    const res = await request(app)
+      .post('/api/auth/avatar')
+      .set('Authorization', `Bearer ${login.body.data.token}`)
+      .attach('avatar', png, 'avatar.png');
+    expect(res.status).toBe(200);
+    expect(res.body.data.avatarUrl).toMatch(/^\/images\/avatar-/);
+    const me = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${login.body.data.token}`);
+    expect(me.body.data.avatarUrl).toMatch(/^\/images\/avatar-/);
+  });
+
+  it('rejects avatar upload without a file', async () => {
+    const login = await request(app).post('/api/auth/login').send({
+      email: newCustomer.email,
+      password: newCustomer.password,
+    });
+    const res = await request(app)
+      .post('/api/auth/avatar')
+      .set('Authorization', `Bearer ${login.body.data.token}`);
+    expect(res.status).toBe(422);
+  });
 });
 
 describe('auth enforcement', () => {

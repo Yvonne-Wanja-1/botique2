@@ -82,6 +82,7 @@ class User {
     String? email,
     String? phone,
     bool? isActive,
+    String? avatarUrl,
   }) {
     return User(
       id: id,
@@ -89,7 +90,7 @@ class User {
       email: email ?? this.email,
       phone: phone ?? this.phone,
       role: role,
-      avatarUrl: avatarUrl,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
       isActive: isActive ?? this.isActive,
       createdAt: createdAt,
     );

@@ -75,7 +75,7 @@ export function createApp(
   const authenticate = createAuthenticate({ jwtSecret, userRepo, allowDevStub: allowDevAuthStub });
 
   const authService = new AuthService(userRepo, jwtSecret, jwtExpiresIn);
-  app.use('/api/auth', authRouter(authService, authenticate));
+  app.use('/api/auth', authRouter(authService, authenticate, { uploadsDir }));
 
   app.use('/api', authenticate);
 

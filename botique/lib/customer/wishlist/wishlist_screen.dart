@@ -5,6 +5,7 @@ import '../../core/animations/product_image_reveal.dart';
 import '../../core/animations/product_presentation.dart';
 import '../../core/animations/wishlist_heart.dart';
 import '../../core/theme/theme.dart';
+import '../../core/utils/currency.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../models/cart.dart';
 import '../../services/wishlist_service.dart';
@@ -75,7 +76,7 @@ class _WishlistTile extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '\$${product.effectivePrice.toStringAsFixed(2)}',
+                    formatKsh(product.effectivePrice),
                     style: const TextStyle(
                       color: QueensTouchColors.plum,
                       fontWeight: FontWeight.w700,

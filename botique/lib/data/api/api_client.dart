@@ -62,13 +62,14 @@ class ApiClient {
     String path, {
     Map<String, String> fields = const {},
     List<UploadImage> images = const [],
+    String fileField = 'images',
   }) async {
     final request = http.MultipartRequest('POST', _uri(path))
       ..headers.addAll(_authHeaders)
       ..fields.addAll(fields);
     for (final image in images) {
       request.files.add(http.MultipartFile.fromBytes(
-        'images',
+        fileField,
         image.bytes,
         filename: image.filename,
         contentType: MediaType.parse(image.mimeType),

@@ -9,6 +9,7 @@ import '../../core/animations/qts_animation.dart';
 import '../../core/animations/shade_selector.dart';
 import '../../core/animations/wishlist_heart.dart';
 import '../../core/theme/theme.dart';
+import '../../core/utils/currency.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/loading_view.dart';
 import '../../data/repositories/review_repository.dart';
@@ -174,7 +175,7 @@ class _ProductDetailBody extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             Text(
-              '\$${product.effectivePrice.toStringAsFixed(2)}',
+              formatKsh(product.effectivePrice),
               style: const TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.w700,
@@ -186,7 +187,7 @@ class _ProductDetailBody extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(bottom: 3),
                 child: Text(
-                  '\$${product.price.toStringAsFixed(2)}',
+                  formatKsh(product.price),
                   style: TextStyle(
                     fontSize: 16,
                     decoration: TextDecoration.lineThrough,
@@ -538,7 +539,7 @@ class _QuantityStepper extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        border: Border.all(color: const Color(0xFFE4D5DA)),
+        border: Border.all(color: const Color(0xFFE8DED7)),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -704,9 +705,9 @@ class _ReviewTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: QueensTouchColors.surfaceLight,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFEEDFE4)),
+        border: Border.all(color: QueensTouchColors.surfaceBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

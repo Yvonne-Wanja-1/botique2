@@ -11,6 +11,7 @@ export interface UserRow {
   role: string;
   isActive: boolean;
   createdAt: string;
+  avatarUrl: string | null;
 }
 
 export interface AuthUserRow extends UserRow {
@@ -29,12 +30,13 @@ export class UserRepository {
       role: String(r.role),
       isActive: Boolean(r.is_active),
       createdAt: String(r.created_at),
+      avatarUrl: r.avatar_url ? String(r.avatar_url) : null,
     };
   }
 
   async getById(id: string): Promise<UserRow | null> {
     const res = await this.pool.query(
-      'SELECT u.id, u.email, u.phone, u.full_name, u.is_active, u.created_at, r.name AS role FROM users u JOIN roles r ON r.id = u.role_id WHERE u.id = $1',
+      'SELECT u.id, u.email, u.phone, u.full_name, u.avatar_url, u.is_active, u.created_at, r.name AS role FROM users u JOIN roles r ON r.id = u.role_id WHERE u.id = $1',
       [id],
     );
     return res.rows.length ? this.map(res.rows[0]) : null;
@@ -42,7 +44,7 @@ export class UserRepository {
 
   async findByEmail(email: string): Promise<UserRow | null> {
     const res = await this.pool.query(
-      `SELECT u.id, u.email, u.phone, u.full_name, u.is_active, u.created_at, r.name AS role
+      `SELECT u.id, u.email, u.phone, u.full_name, u.avatar_url, u.is_active, u.created_at, r.name AS role
        FROM users u JOIN roles r ON r.id = u.role_id
        WHERE u.email = $1`,
       [email],
@@ -52,7 +54,7 @@ export class UserRepository {
 
   async findByEmailWithPassword(email: string): Promise<AuthUserRow | null> {
     const res = await this.pool.query(
-      `SELECT u.id, u.email, u.phone, u.full_name, u.password_hash, u.is_active, u.created_at, r.name AS role
+      `SELECT u.id, u.email, u.phone, u.full_name, u.avatar_url, u.password_hash, u.is_active, u.created_at, r.name AS role
        FROM users u JOIN roles r ON r.id = u.role_id
        WHERE u.email = $1`,
       [email],
@@ -85,7 +87,7 @@ export class UserRepository {
       values,
     );
     const res = await this.pool.query(
-      `SELECT u.id, u.email, u.phone, u.full_name, u.is_active, u.created_at, r.name AS role
+      `SELECT u.id, u.email, u.phone, u.full_name, u.avatar_url, u.is_active, u.created_at, r.name AS role
        FROM users u JOIN roles r ON r.id = u.role_id
        ${where}
        ORDER BY u.created_at DESC LIMIT $${values.length + 1} OFFSET $${values.length + 2}`,
@@ -127,6 +129,17 @@ export class UserRepository {
     const res = await this.pool.query(
       'UPDATE users SET is_active = $2, updated_at = now() WHERE id = $1 RETURNING id',
       [id, isActive],
+    );
+    if (!res.rows.length) throw new NotFoundError('User not found');
+    const user = await this.getById(id);
+    if (!user) throw new NotFoundError('User not found');
+    return user;
+  }
+
+  async updateAvatar(id: string, avatarUrl: string): Promise<UserRow> {
+    const res = await this.pool.query(
+      'UPDATE users SET avatar_url = $2, updated_at = now() WHERE id = $1 RETURNING id',
+      [id, avatarUrl],
     );
     if (!res.rows.length) throw new NotFoundError('User not found');
     const user = await this.getById(id);

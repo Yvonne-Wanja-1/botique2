@@ -5,6 +5,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../data/api/api_client.dart';
 import '../data/api/api_exception.dart';
+import '../models/product.dart';
 import '../models/user.dart';
 
 class DemoAccounts {
@@ -149,8 +150,7 @@ class AuthService extends ChangeNotifier {
 
   bool get usesRemoteApi => _api != null;
 
-  /// Restores a persisted session on startup. In mock mode there is no backend,
-  /// so the app starts signed out (matching the previous demo behavior).
+  /// Restores a persisted session on startup.
   Future<void> restoreSession() async {
     _status = AuthStatus.checking;
     notifyListeners();
@@ -185,6 +185,11 @@ class AuthService extends ChangeNotifier {
 
   Future<void> _validateSession() async {
     if (_api == null) return;
+    // Temporarily suppress the 401 handler during startup validation.
+    // Real 401s during normal API usage should still clear the session via
+    // ApiClient.onUnauthorized → handleUnauthorized().
+    final previousHandler = _api.onUnauthorized;
+    _api.onUnauthorized = null;
     try {
       final data = await _api.get('/api/auth/me');
       if (data is Map<String, dynamic>) {
@@ -194,11 +199,13 @@ class AuthService extends ChangeNotifier {
         notifyListeners();
       }
     } on ApiException catch (e) {
-      if (e.statusCode == 401 || e.statusCode == 403) {
-        await _clearSession();
+      if (e.statusCode != 401 && e.statusCode != 403) {
+        debugPrint('Auth: validation error ${e.statusCode}: ${e.message}');
       }
     } catch (_) {
       // Network errors: keep the restored session.
+    } finally {
+      _api.onUnauthorized = previousHandler;
     }
   }
 
@@ -307,5 +314,32 @@ class AuthService extends ChangeNotifier {
       await _storage.writeUserJson(jsonEncode(_currentUser!.toJson()));
     }
     notifyListeners();
+  }
+
+  /// Uploads a new profile picture from the device gallery. Returns the new
+  /// avatar URL once persisted by the backend.
+  Future<String?> uploadAvatar({required Uint8List bytes, required String filename, required String mimeType}) async {
+    if (_api == null) {
+      throw const ApiException(
+        statusCode: 0,
+        code: 'MOCK',
+        message: 'Profile pictures are only available with a connected backend.',
+      );
+    }
+    final data = await _api.postMultipart(
+      '/api/auth/avatar',
+      images: [UploadImage(bytes: bytes, filename: filename, mimeType: mimeType)],
+      fileField: 'avatar',
+    );
+    if (data is Map<String, dynamic>) {
+      final avatarUrl = data['avatarUrl'] as String?;
+      _currentUser = _currentUser?.copyWith(avatarUrl: avatarUrl);
+      if (_currentUser != null) {
+        await _storage.writeUserJson(jsonEncode(_currentUser!.toJson()));
+      }
+      notifyListeners();
+      return avatarUrl;
+    }
+    return null;
   }
 }

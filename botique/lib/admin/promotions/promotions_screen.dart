@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/theme.dart';
+import '../../core/utils/currency.dart';
 import '../../core/widgets/dialogs.dart';
 import '../../models/promotion.dart';
 
@@ -111,8 +112,8 @@ class _PromotionsScreenState extends State<PromotionsScreen> {
                           children: [
                             Text(p.title, style: const TextStyle(fontWeight: FontWeight.w600)),
                             Text(
-                              '${p.isPercentage ? '${p.value.round()}% off' : '\$${p.value.toStringAsFixed(2)} off'}'
-                              '${p.minimumOrderAmount != null ? ' · min \$${p.minimumOrderAmount!.round()}' : ''}'
+                              '${p.isPercentage ? '${p.value.round()}% off' : '${formatKsh(p.value)} off'}'
+                              '${p.minimumOrderAmount != null ? ' · min ${formatKsh(p.minimumOrderAmount!)}' : ''}'
                               '${p.usageLimit != null ? ' · ${p.usageCount}/${p.usageLimit} used' : ' · ${p.usageCount} used'}',
                               style: const TextStyle(fontSize: 12, color: QueensTouchColors.textMuted),
                             ),
