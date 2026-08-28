@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/animations/fashion_beauty_reveal.dart';
 import '../../core/animations/product_image_reveal.dart';
@@ -588,10 +589,10 @@ class _FooterSection extends StatelessWidget {
       child: Column(
         children: [
           const Text(
-            'QUEENS\' TOUCH',
+            'QUEENS\' TOUCH BEAUTY SHOP',
             style: TextStyle(
               color: Colors.white,
-              fontSize: 18,
+              fontSize: 16,
               fontWeight: FontWeight.w700,
               letterSpacing: 2,
             ),
@@ -606,41 +607,73 @@ class _FooterSection extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 20),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: const [
-              Icon(Icons.location_on_outlined, color: QueensTouchColors.goldLight, size: 16),
-              SizedBox(width: 6),
-              Text('Lagos, Nigeria', style: TextStyle(color: Colors.white70, fontSize: 13)),
-              SizedBox(width: 20),
-              Icon(Icons.phone_outlined, color: QueensTouchColors.goldLight, size: 16),
-              SizedBox(width: 6),
-              Text('+234 800 000 0000', style: TextStyle(color: Colors.white70, fontSize: 13)),
-            ],
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'hello@queenstouch.com',
-            style: TextStyle(color: Colors.white70, fontSize: 13),
-          ),
+          const _FooterRow(icon: Icons.phone_outlined, text: '0714 184 601'),
+          const SizedBox(height: 6),
+          const _FooterRow(icon: Icons.phone_outlined, text: '0725 865 727'),
+          const SizedBox(height: 6),
+          const _FooterRow(icon: Icons.email_outlined, text: 'queenstouchbeauty333@gmail.com'),
           const SizedBox(height: 20),
-          const Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.camera_alt_outlined, color: QueensTouchColors.goldLight),
-              SizedBox(width: 20),
-              Icon(Icons.thumb_up_alt_outlined, color: QueensTouchColors.goldLight),
-              SizedBox(width: 20),
-              Icon(Icons.chat_bubble_outline, color: QueensTouchColors.goldLight),
-            ],
+          const Text(
+            'Pay with M-Pesa',
+            style: TextStyle(
+              color: QueensTouchColors.gold,
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+            ),
+          ),
+          const SizedBox(height: 6),
+          const _FooterRow(icon: Icons.payment, text: 'Paybill: 222111  |  Account: 65727'),
+          const SizedBox(height: 20),
+          GestureDetector(
+            onTap: () async {
+              final uri = Uri.parse('https://www.tiktok.com/@yvonne0963?_r=1&_t=ZS-99ETqt9LR0K');
+              if (await canLaunchUrl(uri)) {
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+              }
+            },
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.tiktok, color: QueensTouchColors.goldLight, size: 20),
+                SizedBox(width: 8),
+                Text(
+                  '@yvonne0963',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 13,
+                    decoration: TextDecoration.underline,
+                    decorationColor: Colors.white70,
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 20),
           Text(
-            '© 2026 Queens\' Touch. All rights reserved.',
+            '© 2026 Queens\' Touch Beauty Shop. All rights reserved.',
             style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 12),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _FooterRow extends StatelessWidget {
+  const _FooterRow({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(icon, color: QueensTouchColors.goldLight, size: 16),
+        const SizedBox(width: 6),
+        Text(text, style: const TextStyle(color: Colors.white70, fontSize: 13)),
+      ],
     );
   }
 }
