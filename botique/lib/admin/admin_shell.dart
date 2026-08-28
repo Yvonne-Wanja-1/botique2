@@ -254,7 +254,7 @@ class _NavDestination extends StatelessWidget {
           decoration: BoxDecoration(
             border: Border(
               left: BorderSide(
-                color: selected ? QueensTouchColors.plum : Colors.transparent,
+                color: selected ? QueensTouchColors.magenta : Colors.transparent,
                 width: 3,
               ),
             ),
@@ -264,7 +264,7 @@ class _NavDestination extends StatelessWidget {
               Icon(
                 icon,
                 size: 20,
-                color: selected ? QueensTouchColors.plum : QueensTouchColors.textMuted,
+                color: selected ? QueensTouchColors.magenta : QueensTouchColors.textMuted,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -274,7 +274,7 @@ class _NavDestination extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 14,
-                    color: selected ? QueensTouchColors.plum : QueensTouchColors.textDark,
+                    color: selected ? QueensTouchColors.magenta : QueensTouchColors.textDark,
                     fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                   ),
                 ),
