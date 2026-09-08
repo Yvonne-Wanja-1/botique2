@@ -112,6 +112,7 @@ export const promotionSchema = z
   .object({
     code: z.string().min(1).max(50),
     title: z.string().min(1),
+    description: z.string().nullable().optional(),
     type: z.enum(['percentage', 'fixed']),
     value: money,
     categoryId: uuid.nullable().optional(),

@@ -235,6 +235,9 @@ class MockNotificationRepository implements NotificationRepository {
   @override
   Future<void> markAllRead() async {}
 
+  @override
+  Future<StoreNotification> create(StoreNotification notification) async => notification;
+
   static final List<StoreNotification> _seed = [
     StoreNotification(
       id: 'n1',
@@ -246,7 +249,7 @@ class MockNotificationRepository implements NotificationRepository {
   ];
 }
 
-class MockPromotionRepository {
+class MockPromotionRepository implements PromotionRepository {
   final List<Promotion> _promotions = [
     const Promotion(
       id: 'promo1',
@@ -278,7 +281,37 @@ class MockPromotionRepository {
     ),
   ];
 
+  @override
   Future<List<Promotion>> getAll() async => _promotions;
+
+  @override
+  Future<List<Promotion>> getActive() async => _promotions.where((p) => p.isActive).toList();
+
+  @override
+  Future<Promotion> create(Promotion promo) async {
+    _promotions.add(promo);
+    return promo;
+  }
+
+  @override
+  Future<Promotion> update(Promotion promo) async {
+    final i = _promotions.indexWhere((p) => p.id == promo.id);
+    if (i != -1) _promotions[i] = promo;
+    return promo;
+  }
+
+  @override
+  Future<void> delete(String id) async {
+    _promotions.removeWhere((p) => p.id == id);
+  }
+
+  @override
+  Future<Map<String, dynamic>?> validate(String code, double subtotal) async {
+    final promo = await findByCode(code);
+    if (promo == null || !promo.isActive) return null;
+    final discount = promo.discountFor(subtotal);
+    return {'code': promo.code, 'title': promo.title, 'discount': discount, 'type': promo.type.name, 'value': promo.value};
+  }
 
   Future<Promotion?> findByCode(String code) async {
     for (final p in _promotions) {

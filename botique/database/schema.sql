@@ -198,6 +198,7 @@ CREATE TABLE promotions (
   id                   UUID PRIMARY KEY,
   code                 TEXT NOT NULL UNIQUE,
   title                TEXT NOT NULL,
+  description          TEXT,
   type                 promotion_type NOT NULL,
   value                NUMERIC(10,2) NOT NULL,
   category_id          UUID REFERENCES categories(id),
@@ -641,10 +642,10 @@ INSERT INTO product_images (id, product_id, url, position, is_primary) VALUES
   ('00000000-0000-0000-0000-000000000815', '00000000-0000-0000-0000-000000000515', 'https://images.unsplash.com/photo-1583496661160-fb5886a4686d', 0, TRUE),
   ('00000000-0000-0000-0000-000000000816', '00000000-0000-0000-0000-000000000516', 'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9', 0, TRUE);
 
-INSERT INTO promotions (id, code, title, type, value, minimum_order_amount, maximum_discount, is_active) VALUES
-  ('00000000-0000-0000-0000-000000000701', 'QUEEN10', '10% off your order', 'percentage', 10, 50, 25, TRUE),
-  ('00000000-0000-0000-0000-000000000702', 'ROYAL20', '20% off your order', 'percentage', 20, 100, 60, TRUE),
-  ('00000000-0000-0000-0000-000000000703', 'FLAT15', '$15 off your order', 'fixed', 15, 75, NULL, TRUE);
+INSERT INTO promotions (id, code, title, description, type, value, minimum_order_amount, maximum_discount, is_active) VALUES
+  ('00000000-0000-0000-0000-000000000701', 'QUEEN10', '10% off your order', 'Get 10% off on orders above KSh 50. Maximum discount KSh 25.', 'percentage', 10, 50, 25, TRUE),
+  ('00000000-0000-0000-0000-000000000702', 'ROYAL20', '20% off your order', 'Get 20% off on orders above KSh 100. Maximum discount KSh 60.', 'percentage', 20, 100, 60, TRUE),
+  ('00000000-0000-0000-0000-000000000703', 'FLAT15', 'KSh 15 off your order', 'Get KSh 15 off on orders above KSh 75.', 'fixed', 15, 75, NULL, TRUE);
 
 -- ======================= maintenance & consistency ==========================
 

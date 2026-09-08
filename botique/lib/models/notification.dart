@@ -53,4 +53,10 @@ class StoreNotification {
       isRead: isRead ?? this.isRead,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'type': type.name,
+    'title': title,
+    'body': body,
+  };
 }

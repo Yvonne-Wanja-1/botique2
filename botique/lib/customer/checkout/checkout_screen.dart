@@ -33,8 +33,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   bool _installmentRequested = false;
   bool _processing = false;
+  bool _validatingPromo = false;
 
   String? _promoCode;
+  double _discount = 0;
+  String? _promoError;
 
   @override
   void initState() {
@@ -58,14 +61,55 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     super.dispose();
   }
 
-  void _applyPromo() {
+  Future<void> _applyPromo() async {
     final code = _promoController.text.trim();
     if (code.isEmpty) {
       showErrorSnack(context, 'Enter a promo code first');
       return;
     }
-    setState(() => _promoCode = code);
-    showSuccessSnack(context, 'Promo $code will be applied at checkout');
+    setState(() {
+      _validatingPromo = true;
+      _promoError = null;
+    });
+    try {
+      final repo = context.read<PromotionRepository>();
+      final result = await repo.validate(code, _subtotal);
+      if (!mounted) return;
+      if (result != null) {
+        setState(() {
+          _promoCode = result['code'] as String;
+          _discount = (result['discount'] as num).toDouble();
+          _promoError = null;
+        });
+        showSuccessSnack(context, 'Promo ${result['code']} applied — ${formatKsh(_discount)} off');
+      } else {
+        setState(() {
+          _promoCode = null;
+          _discount = 0;
+          _promoError = 'Invalid or expired promo code';
+        });
+        showErrorSnack(context, 'Invalid or expired promo code');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _promoCode = null;
+        _discount = 0;
+        _promoError = 'Failed to validate promo code';
+      });
+      showErrorSnack(context, 'Failed to validate promo code');
+    } finally {
+      if (mounted) setState(() => _validatingPromo = false);
+    }
+  }
+
+  void _removePromo() {
+    setState(() {
+      _promoCode = null;
+      _discount = 0;
+      _promoError = null;
+      _promoController.clear();
+    });
   }
 
   double get _subtotal => context.read<CartService>().subtotal;
@@ -74,7 +118,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   Widget build(BuildContext context) {
     final cart = context.read<CartService>();
     final shipping = shippingFor(_subtotal);
-    final total = _subtotal + shipping;
+    final discountedSubtotal = (_subtotal - _discount).clamp(0, _subtotal);
+    final total = discountedSubtotal + shipping;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Checkout')),
@@ -133,12 +178,15 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   child: TextField(
                     controller: _promoController,
                     decoration: const InputDecoration(hintText: 'e.g. QUEEN10'),
+                    onSubmitted: (_) => _applyPromo(),
                   ),
                 ),
                 const SizedBox(width: 8),
                 OutlinedButton(
-                  onPressed: _applyPromo,
-                  child: const Text('Apply'),
+                  onPressed: _validatingPromo ? null : _applyPromo,
+                  child: _validatingPromo
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Text('Apply'),
                 ),
               ],
             ),
@@ -146,20 +194,30 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               const SizedBox(height: 8),
               Row(
                 children: [
-                  const Icon(
-                    Icons.check_circle,
-                    color: QueensTouchColors.success,
-                    size: 18,
-                  ),
+                  const Icon(Icons.check_circle, color: QueensTouchColors.success, size: 18),
                   const SizedBox(width: 6),
                   Text(
-                    '$_promoCode applied',
-                    style: const TextStyle(color: QueensTouchColors.success),
+                    '$_promoCode applied — ${formatKsh(_discount)} off',
+                    style: const TextStyle(color: QueensTouchColors.success, fontWeight: FontWeight.w600),
                   ),
                   const Spacer(),
                   TextButton(
-                    onPressed: () => setState(() => _promoCode = null),
+                    onPressed: _removePromo,
                     child: const Text('Remove'),
+                  ),
+                ],
+              ),
+            ] else if (_promoError != null) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Icon(Icons.error_outline, color: QueensTouchColors.danger, size: 18),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      _promoError!,
+                      style: const TextStyle(color: QueensTouchColors.danger, fontSize: 13),
+                    ),
                   ),
                 ],
               ),
@@ -202,6 +260,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       ),
                     const Divider(height: 16),
                     _Row('Subtotal', formatKsh(_subtotal)),
+                    if (_discount > 0)
+                      _Row('Discount (${_promoCode ?? ""})', '-${formatKsh(_discount)}', isDiscount: true),
                     _Row(
                       'Delivery Fee',
                       formatKsh(shipping),
@@ -367,11 +427,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 }
 
 class _Row extends StatelessWidget {
-  const _Row(this.label, this.value, {this.isTotal = false});
+  const _Row(this.label, this.value, {this.isTotal = false, this.isDiscount = false});
 
   final String label;
   final String value;
   final bool isTotal;
+  final bool isDiscount;
 
   @override
   Widget build(BuildContext context) {
@@ -384,13 +445,18 @@ class _Row extends StatelessWidget {
             label,
             style: TextStyle(
               fontWeight: isTotal ? FontWeight.w700 : FontWeight.w500,
+              color: isDiscount ? QueensTouchColors.success : null,
             ),
           ),
           Text(
             value,
             style: TextStyle(
               fontWeight: isTotal ? FontWeight.w700 : FontWeight.w600,
-              color: isTotal ? QueensTouchColors.gold : null,
+              color: isDiscount
+                  ? QueensTouchColors.success
+                  : isTotal
+                      ? QueensTouchColors.gold
+                      : null,
             ),
           ),
         ],

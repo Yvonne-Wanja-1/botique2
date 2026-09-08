@@ -47,6 +47,8 @@ import { reportRouter } from './routes/reportRouter.js';
 import { AuditRepository } from './repositories/auditRepository.js';
 import { AuditService } from './services/auditService.js';
 import { auditRouter } from './routes/auditRouter.js';
+import { PromotionRepository } from './repositories/promotionRepository.js';
+import { promotionRouter } from './routes/promotionRouter.js';
 
 const DEV_JWT_SECRET = 'dev-only-jwt-secret-do-not-use-in-production';
 
@@ -76,6 +78,13 @@ export function createApp(
 
   const authService = new AuthService(userRepo, jwtSecret, jwtExpiresIn);
   app.use('/api/auth', authRouter(authService, authenticate, { uploadsDir }));
+
+  // Public promotion listings — must be before the authenticate middleware
+  const promotionRepo = new PromotionRepository(pool);
+  app.get('/api/promotions/active', async (_req, res) => {
+    const { ok } = await import('./utils/apiResponse.js');
+    ok(res, await promotionRepo.listActive());
+  });
 
   app.use('/api', authenticate);
 
@@ -131,6 +140,8 @@ export function createApp(
 
   const reportService = new ReportService(pool);
   app.use('/api/reports', reportRouter(reportService));
+
+  app.use('/api/promotions', promotionRouter(promotionRepo));
 
   app.use((_req, res) => {
     res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Route not found' } });

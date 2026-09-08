@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -14,6 +15,8 @@ import '../../core/widgets/loading_view.dart';
 import '../../core/widgets/product_card.dart';
 import '../../models/category.dart';
 import '../../models/product.dart';
+import '../../models/promotion.dart';
+import '../../data/repositories/commerce_repository.dart';
 import '../../services/catalog_service.dart';
 import '../catalog/catalog_screen.dart';
 import '../catalog/categories_screen.dart';
@@ -480,58 +483,138 @@ class _CuratedRow extends StatelessWidget {
   }
 }
 
-class _OfferBanner extends StatelessWidget {
+class _OfferBanner extends StatefulWidget {
   const _OfferBanner();
 
   @override
+  State<_OfferBanner> createState() => _OfferBannerState();
+}
+
+class _OfferBannerState extends State<_OfferBanner> {
+  late final Future<List<Promotion>> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = context.read<PromotionRepository>().getActive();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [QueensTouchColors.gold, QueensTouchColors.goldLight],
-        ),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        children: [
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'SPECIAL OFFER',
-                  style: TextStyle(
-                    fontSize: 11,
-                    letterSpacing: 3,
-                    fontWeight: FontWeight.w700,
-                    color: QueensTouchColors.plumDark,
+    return FutureBuilder<List<Promotion>>(
+      future: _future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SizedBox.shrink();
+        }
+        if (snapshot.hasError) {
+          return const SizedBox.shrink();
+        }
+        final promos = snapshot.data;
+        if (promos == null || promos.isEmpty) {
+          return const SizedBox.shrink();
+        }
+        return Container(
+          margin: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [QueensTouchColors.gold, QueensTouchColors.goldLight],
+            ),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'ACTIVE PROMOTIONS',
+                style: TextStyle(
+                  fontSize: 11,
+                  letterSpacing: 3,
+                  fontWeight: FontWeight.w700,
+                  color: QueensTouchColors.plumDark,
+                ),
+              ),
+              const SizedBox(height: 12),
+              ...promos.map((p) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: GestureDetector(
+                  onTap: () {
+                    Clipboard.setData(ClipboardData(text: p.code));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Promo code "${p.code}" copied!'),
+                        duration: const Duration(seconds: 2),
+                        backgroundColor: QueensTouchColors.success,
+                      ),
+                    );
+                  },
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: QueensTouchColors.plumDark,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              p.code,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            const Icon(Icons.copy, size: 12, color: Colors.white70),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              p.title,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: QueensTouchColors.plumDark,
+                              ),
+                            ),
+                            if (p.description != null && p.description!.isNotEmpty)
+                              Text(
+                                p.description!,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: QueensTouchColors.plumDark.withValues(alpha: 0.7),
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                          ],
+                        ),
+                      ),
+                      Text(
+                        p.isPercentage ? '${p.value.round()}% OFF' : '${formatKsh(p.value)} OFF',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: QueensTouchColors.plumDark,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                SizedBox(height: 6),
-                Text(
-                  'Up to 20% off\nsignature pieces',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: QueensTouchColors.plumDark,
-                    height: 1.2,
-                  ),
-                ),
-              ],
-            ),
+              )),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () {},
-            style: ElevatedButton.styleFrom(
-              backgroundColor: QueensTouchColors.plumDark,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Shop Sale'),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

@@ -156,19 +156,24 @@ export class OrderRepository {
 
       let discountAmount = 0;
       let promoCode: string | null = null;
+      let promoId: string | null = null;
       if (input.promotionCode) {
         const pres = await client.query(
           `SELECT * FROM promotions WHERE code = $1 AND is_active = TRUE
              AND (start_date IS NULL OR start_date <= now())
              AND (end_date IS NULL OR end_date >= now())`,
-          [input.promotionCode],
+          [input.promotionCode.toUpperCase()],
         );
         if (!pres.rows.length) throw new ValidationError('Promotion code is invalid or expired');
         const promo = pres.rows[0];
+        if (promo.usage_limit !== null && Number(promo.usage_count) >= Number(promo.usage_limit)) {
+          throw new ValidationError('This promotion has reached its usage limit');
+        }
         if (promo.minimum_order_amount !== null && subtotal < Number(promo.minimum_order_amount)) {
           throw new ValidationError('Subtotal is below the promotion minimum');
         }
         promoCode = String(promo.code);
+        promoId = String(promo.id);
         if (promo.type === 'percentage') discountAmount = (subtotal * Number(promo.value)) / 100;
         else discountAmount = Number(promo.value);
         if (promo.maximum_discount !== null && discountAmount > Number(promo.maximum_discount)) {
@@ -209,10 +214,20 @@ export class OrderRepository {
         );
       }
 
-      await client.query(
-        `DELETE FROM cart_items WHERE variant_id IN (${placeholders}) AND cart_id IN (SELECT id FROM carts WHERE user_id = $${variantIds.length + 1})`,
-        [...variantIds, customerId],
-      );
+      // Increment promo usage count
+      if (promoId) {
+        await client.query(
+          'UPDATE promotions SET usage_count = usage_count + 1, updated_at = now() WHERE id = $1',
+          [promoId],
+        );
+      }
+
+      if (variantIds.length > 0) {
+        await client.query(
+          `DELETE FROM cart_items WHERE variant_id IN (${placeholders}) AND cart_id IN (SELECT id FROM carts WHERE user_id = $${variantIds.length + 1})`,
+          [...variantIds, customerId],
+        );
+      }
       await client.query('COMMIT');
 
       const order = await this.findById(orderId);
