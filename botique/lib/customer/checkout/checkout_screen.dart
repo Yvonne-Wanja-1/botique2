@@ -302,7 +302,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         width: 20,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: QueensTouchColors.onGold,
+                          color: QueensTouchColors.cream,
                         ),
                       )
                     : const Text('Place Order'),

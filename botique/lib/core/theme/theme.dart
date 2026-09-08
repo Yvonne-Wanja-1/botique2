@@ -1,34 +1,35 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-/// Queens' Touch Magenta + Gold palette.
+/// Queens' Touch purple + gold palette.
 ///
-/// Dark surfaces, bold magenta + gold accents, warm white text.
+/// Dominant: #BA4DFF (vibrant purple). Accent: gold (#C6A15B).
+/// White is used only for text on dark surfaces — never as backgrounds.
 class QueensTouchColors {
   QueensTouchColors._();
 
-  static const Color plum = Color(0xFFD4AF37);
-  static const Color plumDark = Color(0xFF0E0A1A);
-  static const Color plumLight = Color(0xFF5C1A8A);
-  static const Color blush = Color(0xFF1A0F2E);
-  static const Color blushLight = Color(0xFF130B22);
-  static const Color gold = Color(0xFFD4AF37);
-  static const Color goldLight = Color(0xFFFFF8E7);
-  static const Color cream = Color(0xFF110D1F);
-  static const Color textDark = Color(0xFFFFF8E7);
-  static const Color textMuted = Color(0xFF9B8DB5);
-  static const Color success = Color(0xFF71816C);
-  static const Color danger = Color(0xFFA6535C);
-  static const Color warning = Color(0xFFD4AF37);
-  static const Color surfaceLight = Color(0xFF7F00FF);
-  static const Color surfaceBorder = Color(0xFF2E1F4A);
-  static const Color onGold = Color(0xFF1A0F2E);
-  static const Color magenta = Color(0xFFFF00FF);
+  // ── Purple range (dominant) ──────────────────────────────────────────
+  static const Color plum = Color(0xFFBA4DFF);           // primary purple
+  static const Color plumDark = Color(0xFF7B1FA2);       // deep purple (gradients, darker surfaces)
+  static const Color plumLight = Color(0xFFD08FFF);      // lighter purple highlight
+  static const Color blush = Color(0xFF3D1A5E);          // dark purple (unselected dots, muted)
+  static const Color blushLight = Color(0xFF2A1040);     // very dark purple (chips, selected bg)
+  static const Color surfaceLight = Color(0xFF221438);   // card / elevated surface
+  static const Color surfaceBorder = Color(0xFF3D2560);  // subtle border on dark
+  static const Color cream = Color(0xFF1A0A2E);          // scaffold background (deep purple-black)
 
-  // Semantic aliases.
-  static const Color deepPurple = Color(0xFF110D1F);
-  static const Color royalPurple = Color(0xFF5C1A8A);
-  static const Color lavender = Color(0xFF9B8DB5);
+  // ── Gold range (accent) ──────────────────────────────────────────────
+  static const Color gold = Color(0xFFC6A15B);           // bright gold
+  static const Color goldLight = Color(0xFFE8D5A8);      // champagne (labels on dark)
+
+  // ── Text ─────────────────────────────────────────────────────────────
+  static const Color textDark = Color(0xFFFFFFFF);       // white — main text on dark
+  static const Color textMuted = Color(0xFFB09FD0);      // muted lavender
+
+  // ── Semantic ─────────────────────────────────────────────────────────
+  static const Color success = Color(0xFF4CAF7D);
+  static const Color danger = Color(0xFFE05252);
+  static const Color warning = Color(0xFFE0A93B);
 }
 
 class QueensTouchTheme {
@@ -38,38 +39,12 @@ class QueensTouchTheme {
     final base = ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
-      colorScheme: ColorScheme(
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: QueensTouchColors.plum,
         brightness: Brightness.dark,
         primary: QueensTouchColors.gold,
-        onPrimary: QueensTouchColors.onGold,
-        primaryContainer: QueensTouchColors.gold,
-        onPrimaryContainer: QueensTouchColors.onGold,
-        secondary: QueensTouchColors.magenta,
-        onSecondary: Colors.white,
-        secondaryContainer: QueensTouchColors.magenta,
-        onSecondaryContainer: Colors.white,
-        tertiary: QueensTouchColors.magenta,
-        onTertiary: Colors.white,
-        tertiaryContainer: QueensTouchColors.magenta,
-        onTertiaryContainer: Colors.white,
+        secondary: QueensTouchColors.plum,
         surface: QueensTouchColors.surfaceLight,
-        onSurface: QueensTouchColors.textDark,
-        surfaceContainerHighest: QueensTouchColors.surfaceLight,
-        surfaceContainerHigh: QueensTouchColors.surfaceLight,
-        surfaceContainer: QueensTouchColors.surfaceLight,
-        surfaceContainerLow: QueensTouchColors.surfaceLight,
-        surfaceContainerLowest: QueensTouchColors.surfaceLight,
-        surfaceDim: QueensTouchColors.plumDark,
-        surfaceBright: QueensTouchColors.surfaceLight,
-        outline: QueensTouchColors.surfaceBorder,
-        outlineVariant: QueensTouchColors.surfaceBorder,
-        error: QueensTouchColors.danger,
-        onError: Colors.white,
-        shadow: Colors.black,
-        scrim: Colors.black,
-        inverseSurface: QueensTouchColors.textDark,
-        onInverseSurface: QueensTouchColors.plumDark,
-        inversePrimary: QueensTouchColors.gold,
       ),
       scaffoldBackgroundColor: QueensTouchColors.cream,
     );
@@ -83,17 +58,17 @@ class QueensTouchTheme {
         displayMedium: GoogleFonts.cormorantGaramond(
           fontSize: 34,
           fontWeight: FontWeight.w600,
-          color: base.colorScheme.onSurface,
+          color: QueensTouchColors.textDark,
         ),
         headlineLarge: GoogleFonts.cormorantGaramond(
           fontSize: 30,
           fontWeight: FontWeight.w700,
-          color: base.colorScheme.onSurface,
+          color: QueensTouchColors.textDark,
         ),
         headlineSmall: GoogleFonts.cormorantGaramond(
           fontSize: 22,
           fontWeight: FontWeight.w700,
-          color: base.colorScheme.onSurface,
+          color: QueensTouchColors.textDark,
         ),
         headlineMedium: base.textTheme.headlineMedium?.copyWith(
           fontWeight: FontWeight.w600,
@@ -107,12 +82,11 @@ class QueensTouchTheme {
         foregroundColor: QueensTouchColors.textDark,
         elevation: 0,
         centerTitle: false,
-        iconTheme: const IconThemeData(color: QueensTouchColors.textDark),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: QueensTouchColors.magenta,
-          foregroundColor: Colors.white,
+          backgroundColor: QueensTouchColors.gold,
+          foregroundColor: QueensTouchColors.cream,
           minimumSize: const Size(48, 48),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
@@ -121,17 +95,12 @@ class QueensTouchTheme {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: QueensTouchColors.magenta,
-          side: const BorderSide(color: QueensTouchColors.magenta),
+          foregroundColor: QueensTouchColors.gold,
+          side: const BorderSide(color: QueensTouchColors.gold),
           minimumSize: const Size(48, 48),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-        ),
-      ),
-      textButtonTheme: TextButtonThemeData(
-        style: TextButton.styleFrom(
-          foregroundColor: QueensTouchColors.magenta,
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -149,37 +118,17 @@ class QueensTouchTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: QueensTouchColors.magenta, width: 1.5),
+          borderSide: const BorderSide(color: QueensTouchColors.gold, width: 1.5),
         ),
       ),
       chipTheme: ChipThemeData(
         backgroundColor: QueensTouchColors.blushLight,
-        selectedColor: QueensTouchColors.magenta,
-        labelStyle: const TextStyle(color: Colors.white),
+        selectedColor: QueensTouchColors.gold,
+        labelStyle: const TextStyle(color: QueensTouchColors.textDark),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
           side: const BorderSide(color: QueensTouchColors.surfaceBorder),
         ),
-      ),
-      switchTheme: SwitchThemeData(
-        thumbColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) return QueensTouchColors.magenta;
-          return QueensTouchColors.textMuted;
-        }),
-        trackColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) {
-            return QueensTouchColors.magenta.withValues(alpha: 0.4);
-          }
-          return QueensTouchColors.surfaceBorder;
-        }),
-      ),
-      sliderTheme: const SliderThemeData(
-        activeTrackColor: QueensTouchColors.magenta,
-        thumbColor: QueensTouchColors.magenta,
-        inactiveTrackColor: QueensTouchColors.surfaceBorder,
-      ),
-      progressIndicatorTheme: const ProgressIndicatorThemeData(
-        color: QueensTouchColors.magenta,
       ),
       dividerTheme: const DividerThemeData(
         color: QueensTouchColors.surfaceBorder,
@@ -197,104 +146,6 @@ class QueensTouchTheme {
         backgroundColor: QueensTouchColors.surfaceLight,
         contentTextStyle: TextStyle(color: QueensTouchColors.textDark),
         behavior: SnackBarBehavior.floating,
-      ),
-      navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: QueensTouchColors.plumDark,
-        indicatorColor: QueensTouchColors.magenta.withValues(alpha: 0.2),
-        labelTextStyle: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) {
-            return const TextStyle(color: QueensTouchColors.magenta, fontWeight: FontWeight.w600);
-          }
-          return const TextStyle(color: QueensTouchColors.textMuted);
-        }),
-        iconTheme: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) {
-            return const IconThemeData(color: QueensTouchColors.magenta);
-          }
-          return const IconThemeData(color: QueensTouchColors.textMuted);
-        }),
-      ),
-      navigationRailTheme: NavigationRailThemeData(
-        backgroundColor: QueensTouchColors.plumDark,
-        selectedIconTheme: const IconThemeData(color: QueensTouchColors.magenta),
-        unselectedIconTheme: const IconThemeData(color: QueensTouchColors.textMuted),
-        selectedLabelTextStyle: const TextStyle(color: QueensTouchColors.magenta, fontWeight: FontWeight.w600),
-        unselectedLabelTextStyle: const TextStyle(color: QueensTouchColors.textMuted),
-      ),
-      tabBarTheme: TabBarThemeData(
-        labelColor: QueensTouchColors.magenta,
-        unselectedLabelColor: QueensTouchColors.textMuted,
-        indicatorColor: QueensTouchColors.magenta,
-        dividerColor: QueensTouchColors.surfaceBorder,
-      ),
-      checkboxTheme: CheckboxThemeData(
-        fillColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) return QueensTouchColors.magenta;
-          return QueensTouchColors.textMuted;
-        }),
-        checkColor: WidgetStateProperty.all(Colors.white),
-        side: const BorderSide(color: QueensTouchColors.surfaceBorder),
-      ),
-      radioTheme: RadioThemeData(
-        fillColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) return QueensTouchColors.magenta;
-          return QueensTouchColors.textMuted;
-        }),
-      ),
-      datePickerTheme: DatePickerThemeData(
-        backgroundColor: QueensTouchColors.surfaceLight,
-        headerBackgroundColor: QueensTouchColors.magenta,
-        headerForegroundColor: Colors.white,
-        dayBackgroundColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) return QueensTouchColors.magenta;
-          return null;
-        }),
-        dayForegroundColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) return Colors.white;
-          return QueensTouchColors.textDark;
-        }),
-        todayBackgroundColor: WidgetStateProperty.all(QueensTouchColors.magenta.withValues(alpha: 0.3)),
-        todayForegroundColor: WidgetStateProperty.all(QueensTouchColors.magenta),
-        yearBackgroundColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) return QueensTouchColors.magenta;
-          return null;
-        }),
-        yearForegroundColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) return Colors.white;
-          return QueensTouchColors.textDark;
-        }),
-      ),
-      dialogTheme: DialogThemeData(
-        backgroundColor: QueensTouchColors.surfaceLight,
-        titleTextStyle: const TextStyle(color: QueensTouchColors.textDark, fontSize: 20, fontWeight: FontWeight.w600),
-      ),
-      bottomSheetTheme: const BottomSheetThemeData(
-        backgroundColor: QueensTouchColors.surfaceLight,
-        dragHandleColor: QueensTouchColors.surfaceBorder,
-      ),
-      tooltipTheme: TooltipThemeData(
-        decoration: BoxDecoration(
-          color: QueensTouchColors.magenta,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        textStyle: const TextStyle(color: Colors.white, fontSize: 12),
-      ),
-      listTileTheme: const ListTileThemeData(
-        textColor: QueensTouchColors.textDark,
-        iconColor: QueensTouchColors.textMuted,
-      ),
-      badgeTheme: const BadgeThemeData(
-        backgroundColor: QueensTouchColors.magenta,
-        textColor: Colors.white,
-      ),
-      textSelectionTheme: TextSelectionThemeData(
-        cursorColor: QueensTouchColors.magenta,
-        selectionColor: QueensTouchColors.magenta.withValues(alpha: 0.3),
-        selectionHandleColor: QueensTouchColors.magenta,
-      ),
-      drawerTheme: const DrawerThemeData(
-        backgroundColor: QueensTouchColors.surfaceLight,
-        scrimColor: QueensTouchColors.plumDark,
       ),
     );
   }

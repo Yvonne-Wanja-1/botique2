@@ -597,7 +597,7 @@ class _Avatar extends StatelessWidget {
               : Text(
                   user.name.isNotEmpty ? user.name[0] : '?',
                   style: TextStyle(
-                    color: QueensTouchColors.onGold,
+                    color: Colors.white,
                     fontSize: radius * 0.72,
                   ),
                 ),
@@ -736,13 +736,13 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                               height: 16,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: QueensTouchColors.onGold,
+                                color: Colors.white,
                               ),
                             )
                           : const Icon(
                               Icons.photo_camera,
                               size: 16,
-                              color: QueensTouchColors.onGold,
+                              color: Colors.white,
                             ),
                     ),
                   ),

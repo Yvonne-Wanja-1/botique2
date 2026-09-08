@@ -104,7 +104,7 @@ class _UserMenu extends StatelessWidget {
             ? null
             : Text(
                 user?.name.isNotEmpty == true ? user!.name[0] : '?',
-                style: const TextStyle(color: QueensTouchColors.onGold, fontSize: 12),
+                style: const TextStyle(color: Colors.white, fontSize: 12),
               ),
       ),
       onSelected: (value) {
@@ -254,7 +254,7 @@ class _NavDestination extends StatelessWidget {
           decoration: BoxDecoration(
             border: Border(
               left: BorderSide(
-                color: selected ? QueensTouchColors.magenta : Colors.transparent,
+                color: selected ? QueensTouchColors.gold : Colors.transparent,
                 width: 3,
               ),
             ),
@@ -264,7 +264,7 @@ class _NavDestination extends StatelessWidget {
               Icon(
                 icon,
                 size: 20,
-                color: selected ? QueensTouchColors.magenta : QueensTouchColors.textMuted,
+                color: selected ? QueensTouchColors.gold : QueensTouchColors.textMuted,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -274,7 +274,7 @@ class _NavDestination extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 14,
-                    color: selected ? QueensTouchColors.magenta : QueensTouchColors.textDark,
+                    color: selected ? QueensTouchColors.gold : QueensTouchColors.textDark,
                     fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                   ),
                 ),
