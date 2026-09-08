@@ -210,7 +210,7 @@ class _SubmitPaymentScreenState extends State<SubmitPaymentScreen> {
                         width: 20,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: QueensTouchColors.onGold,
+                          color: QueensTouchColors.cream,
                         ),
                       )
                     : const Text('Submit Payment'),

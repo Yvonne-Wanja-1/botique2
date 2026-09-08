@@ -650,7 +650,7 @@ class _ExistingImageTile extends StatelessWidget {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Text('Set primary',
-                    style: TextStyle(color: QueensTouchColors.onGold, fontSize: 8, fontWeight: FontWeight.w600)),
+                    style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w600)),
               ),
             ),
           ),

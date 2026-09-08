@@ -113,7 +113,7 @@ class OrderTimeline extends StatelessWidget {
                                 ? const Icon(
                                     Icons.check,
                                     size: 14,
-                                    color: QueensTouchColors.onGold,
+                                    color: Colors.white,
                                   )
                                 : null,
                           ),

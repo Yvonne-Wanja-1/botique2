@@ -90,7 +90,7 @@ class ProductCard extends StatelessWidget {
                       child: const Text(
                         'NEW',
                         style: TextStyle(
-                          color: QueensTouchColors.onGold,
+                          color: Colors.white,
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
                         ),

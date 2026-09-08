@@ -106,7 +106,7 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
                 ? const SizedBox(
                     width: 20,
                     height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: QueensTouchColors.onGold),
+                    child: CircularProgressIndicator(strokeWidth: 2, color: QueensTouchColors.cream),
                   )
                 : const Text('Submit Review'),
           ),
