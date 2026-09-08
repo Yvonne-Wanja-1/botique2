@@ -112,6 +112,7 @@ export const promotionSchema = z
   .object({
     code: z.string().min(1).max(50),
     title: z.string().min(1),
+    description: z.string().nullable().optional(),
     type: z.enum(['percentage', 'fixed']),
     value: money,
     categoryId: uuid.nullable().optional(),
@@ -165,6 +166,13 @@ export const staffCreateSchema = z.object({
   phone: z.string().min(1),
   role: z.enum(['super_admin', 'store_manager', 'sales_staff', 'inventory_staff']),
 });
+
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, 'Current password is required'),
+    newPassword: z.string().min(8, 'Password must be at least 8 characters').max(128),
+  })
+  .strict();
 
 export const roleUpdateSchema = z.object({
   role: z.enum(['super_admin', 'store_manager', 'sales_staff', 'inventory_staff']),

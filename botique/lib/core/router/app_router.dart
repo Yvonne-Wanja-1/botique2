@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -8,6 +9,8 @@ import '../../customer/catalog/product_detail_screen.dart';
 import '../../customer/catalog/write_review_screen.dart';
 import '../../customer/orders/order_detail_screen.dart';
 import '../../customer/account/account_screen.dart';
+import '../../customer/account/change_password_screen.dart';
+import '../../customer/wishlist/wishlist_screen.dart';
 import '../../features/login/login_screen.dart';
 import '../../features/auth/register_screen.dart';
 import '../../features/auth/splash_screen.dart';
@@ -99,6 +102,17 @@ class AppRouter {
             GoRoute(
               path: 'account/notifications',
               builder: (context, state) => const NotificationsScreen(),
+            ),
+            GoRoute(
+              path: 'account/wishlist',
+              builder: (context, state) => Scaffold(
+                appBar: AppBar(title: const Text('My Wishlist')),
+                body: const WishlistScreen(),
+              ),
+            ),
+            GoRoute(
+              path: 'account/change-password',
+              builder: (context, state) => const ChangePasswordScreen(),
             ),
           ],
         ),

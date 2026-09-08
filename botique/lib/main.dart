@@ -49,6 +49,7 @@ class _QueensTouchAppState extends State<QueensTouchApp> {
   late final NotificationRepository _notificationRepo;
   late final ReviewRepository _reviewRepo;
   late final ReportRepository _reportRepo;
+  late final PromotionRepository _promotionRepo;
 
   @override
   void initState() {
@@ -71,6 +72,7 @@ class _QueensTouchAppState extends State<QueensTouchApp> {
     _reportRepo = widget.apiClient != null
         ? ApiReportRepository(widget.apiClient!)
         : MockReportRepository();
+    _promotionRepo = api?.promotion ?? MockPromotionRepository();
   }
 
   @override
@@ -99,6 +101,7 @@ class _QueensTouchAppState extends State<QueensTouchApp> {
         Provider<OrderRepository>(create: (_) => _orderRepo),
         Provider<ReviewRepository>(create: (_) => _reviewRepo),
         Provider<ReportRepository>(create: (_) => _reportRepo),
+        Provider<PromotionRepository>(create: (_) => _promotionRepo),
         ChangeNotifierProvider(
           create: (_) => NotificationService(repo: _notificationRepo)..load(),
         ),

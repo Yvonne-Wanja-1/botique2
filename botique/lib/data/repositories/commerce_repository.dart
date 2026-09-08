@@ -1,5 +1,6 @@
 import '../../models/cart.dart';
 import '../../models/order.dart';
+import '../../models/promotion.dart';
 
 class CheckoutPayload {
   const CheckoutPayload({
@@ -75,4 +76,13 @@ abstract class OrderRepository {
   Future<List<Installment>> getInstallments({String? customerId});
   Future<Installment> approveInstallment(String id);
   Future<Installment> rejectInstallment(String id, {required String reason});
+}
+
+abstract class PromotionRepository {
+  Future<List<Promotion>> getAll();
+  Future<List<Promotion>> getActive();
+  Future<Promotion> create(Promotion promo);
+  Future<Promotion> update(Promotion promo);
+  Future<void> delete(String id);
+  Future<Map<String, dynamic>?> validate(String code, double subtotal);
 }

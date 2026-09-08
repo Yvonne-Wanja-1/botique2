@@ -171,6 +171,7 @@ export interface Promotion {
   id: string;
   code: string;
   title: string;
+  description: string | null;
   type: PromotionType;
   value: number;
   categoryId: string | null;

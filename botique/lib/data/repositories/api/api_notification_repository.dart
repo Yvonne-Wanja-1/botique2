@@ -26,4 +26,10 @@ class ApiNotificationRepository implements NotificationRepository {
   Future<void> markAllRead() async {
     await _client.patch('/api/notifications/read-all');
   }
+
+  @override
+  Future<StoreNotification> create(StoreNotification notification) async {
+    final data = await _client.post('/api/notifications', body: notification.toJson());
+    return StoreNotification.fromJson(data as Map<String, dynamic>);
+  }
 }

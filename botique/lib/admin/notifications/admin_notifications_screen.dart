@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../core/theme/theme.dart';
 import '../../core/widgets/dialogs.dart';
+import '../../data/repositories/notification_repository.dart';
 import '../../models/notification.dart';
 
 class AdminNotificationsScreen extends StatefulWidget {
@@ -13,17 +15,32 @@ class AdminNotificationsScreen extends StatefulWidget {
 
 class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
   final List<StoreNotification> _sent = [];
+  bool _sending = false;
 
-  void _compose() {
-    showModalBottomSheet(
+  Future<void> _compose() async {
+    final repo = context.read<NotificationRepository>();
+    final result = await showModalBottomSheet<StoreNotification>(
       context: context,
       isScrollControlled: true,
       builder: (context) => _ComposeNotification(
-        onSend: (n) {
-          setState(() => _sent.insert(0, n));
-        },
+        sending: _sending,
       ),
     );
+    if (result == null || !mounted) return;
+    setState(() => _sending = true);
+    try {
+      final created = await repo.create(result);
+      if (!mounted) return;
+      setState(() {
+        _sent.insert(0, created);
+        _sending = false;
+      });
+      showSuccessSnack(context, 'Notification sent');
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _sending = false);
+      showErrorSnack(context, 'Failed to send: $e');
+    }
   }
 
   @override
@@ -78,9 +95,9 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
 }
 
 class _ComposeNotification extends StatefulWidget {
-  const _ComposeNotification({required this.onSend});
+  const _ComposeNotification({required this.sending});
 
-  final ValueChanged<StoreNotification> onSend;
+  final bool sending;
 
   @override
   State<_ComposeNotification> createState() => _ComposeNotificationState();
@@ -94,6 +111,12 @@ class _ComposeNotificationState extends State<_ComposeNotification> {
 
   static const _audiences = ['All customers', 'Selected customers', 'Purchasers of a product', 'Promo list'];
   static const _types = ['Promotion', 'Announcement', 'Sale', 'Order update'];
+  static const _notificationTypes = [
+    NotificationType.promotion,
+    NotificationType.announcement,
+    NotificationType.promotion,
+    NotificationType.order,
+  ];
 
   @override
   void dispose() {
@@ -141,19 +164,24 @@ class _ComposeNotificationState extends State<_ComposeNotification> {
             ),
             const SizedBox(height: 20),
             ElevatedButton(
-              onPressed: () {
-                if (_title.text.trim().isEmpty || _body.text.trim().isEmpty) return;
-                widget.onSend(StoreNotification(
-                  id: 'n${DateTime.now().millisecondsSinceEpoch}',
-                  type: NotificationType.values[_type],
-                  title: _title.text.trim(),
-                  body: _body.text.trim(),
-                  createdAt: DateTime.now(),
-                ));
-                Navigator.pop(context);
-                showSuccessSnack(context, 'Notification sent to ${_audiences[_audience]}');
-              },
-              child: const Text('Send Notification'),
+              onPressed: widget.sending
+                  ? null
+                  : () {
+                      if (_title.text.trim().isEmpty || _body.text.trim().isEmpty) return;
+                      Navigator.pop(
+                        context,
+                        StoreNotification(
+                          id: '',
+                          type: _notificationTypes[_type],
+                          title: _title.text.trim(),
+                          body: _body.text.trim(),
+                          createdAt: DateTime.now(),
+                        ),
+                      );
+                    },
+              child: widget.sending
+                  ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Text('Send Notification'),
             ),
           ],
         ),

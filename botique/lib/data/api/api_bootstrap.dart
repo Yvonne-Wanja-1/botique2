@@ -7,6 +7,7 @@ import '../repositories/api/api_brand_repository.dart';
 import '../repositories/api/api_cart_repository.dart';
 import '../repositories/api/api_wishlist_repository.dart';
 import '../repositories/api/api_order_repository.dart';
+import '../repositories/api/api_promotion_repository.dart';
 import 'api_client.dart';
 
 /// Whether to use the live backend API instead of the mock repositories.
@@ -28,6 +29,7 @@ class ApiRepositories {
     required this.cart,
     required this.wishlist,
     required this.order,
+    required this.promotion,
   });
 
   final ProductRepository product;
@@ -36,6 +38,7 @@ class ApiRepositories {
   final CartRepository cart;
   final WishlistRepository wishlist;
   final OrderRepository order;
+  final PromotionRepository promotion;
 }
 
 ApiRepositories buildApiRepositories(ApiClient client) => ApiRepositories(
@@ -45,4 +48,5 @@ ApiRepositories buildApiRepositories(ApiClient client) => ApiRepositories(
       cart: ApiCartRepository(client),
       wishlist: ApiWishlistRepository(client),
       order: ApiOrderRepository(client),
+      promotion: ApiPromotionRepository(client),
     );
