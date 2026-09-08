@@ -316,6 +316,20 @@ class AuthService extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> changePassword({required String currentPassword, required String newPassword}) async {
+    if (_api == null) {
+      throw const ApiException(
+        statusCode: 0,
+        code: 'MOCK',
+        message: 'Password change is only available with a connected backend.',
+      );
+    }
+    await _api.put('/api/auth/password', body: {
+      'currentPassword': currentPassword,
+      'newPassword': newPassword,
+    });
+  }
+
   /// Uploads a new profile picture from the device gallery. Returns the new
   /// avatar URL once persisted by the backend.
   Future<String?> uploadAvatar({required Uint8List bytes, required String filename, required String mimeType}) async {

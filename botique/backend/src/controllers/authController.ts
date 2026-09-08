@@ -26,5 +26,10 @@ export function authController(authService: AuthService) {
       const avatarUrl = `/images/${file.filename}`;
       ok(res, await authService.updateAvatar(principalId(req), avatarUrl));
     },
+    async changePassword(req: Request, res: Response): Promise<void> {
+      const { currentPassword, newPassword } = req.body;
+      await authService.changePassword(principalId(req), currentPassword, newPassword);
+      ok(res, { changed: true });
+    },
   };
 }

@@ -136,6 +136,19 @@ export class UserRepository {
     return user;
   }
 
+  async getPasswordHash(id: string): Promise<string | null> {
+    const res = await this.pool.query('SELECT password_hash FROM users WHERE id = $1', [id]);
+    return res.rows.length ? (res.rows[0].password_hash as string) : null;
+  }
+
+  async updatePassword(id: string, passwordHash: string): Promise<void> {
+    const res = await this.pool.query(
+      'UPDATE users SET password_hash = $2, updated_at = now() WHERE id = $1 RETURNING id',
+      [id, passwordHash],
+    );
+    if (!res.rows.length) throw new NotFoundError('User not found');
+  }
+
   async updateAvatar(id: string, avatarUrl: string): Promise<UserRow> {
     const res = await this.pool.query(
       'UPDATE users SET avatar_url = $2, updated_at = now() WHERE id = $1 RETURNING id',

@@ -51,6 +51,9 @@ class ApiClient {
   Future<dynamic> post(String path, {Object? body, Map<String, dynamic>? query}) =>
       _send(() => _client.post(_uri(path, query), headers: _headers, body: jsonEncode(body ?? {})));
 
+  Future<dynamic> put(String path, {Object? body, Map<String, dynamic>? query}) =>
+      _send(() => _client.put(_uri(path, query), headers: _headers, body: jsonEncode(body ?? {})));
+
   Future<dynamic> patch(String path, {Object? body, Map<String, dynamic>? query}) =>
       _send(() => _client.patch(_uri(path, query), headers: _headers, body: jsonEncode(body ?? {})));
 

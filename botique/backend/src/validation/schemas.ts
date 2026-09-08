@@ -166,6 +166,13 @@ export const staffCreateSchema = z.object({
   role: z.enum(['super_admin', 'store_manager', 'sales_staff', 'inventory_staff']),
 });
 
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, 'Current password is required'),
+    newPassword: z.string().min(8, 'Password must be at least 8 characters').max(128),
+  })
+  .strict();
+
 export const roleUpdateSchema = z.object({
   role: z.enum(['super_admin', 'store_manager', 'sales_staff', 'inventory_staff']),
 });

@@ -5,7 +5,7 @@ import { Router, type RequestHandler } from 'express';
 import multer from 'multer';
 import { authController } from '../controllers/authController.js';
 import { validateBody } from '../middleware/validate.js';
-import { loginSchema, registerSchema } from '../validation/schemas.js';
+import { changePasswordSchema, loginSchema, registerSchema } from '../validation/schemas.js';
 import { ValidationError } from '../utils/errors.js';
 import type { AuthService } from '../services/authService.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
@@ -38,6 +38,7 @@ export function authRouter(
   router.get('/me', authenticate, asyncHandler(c.me));
   router.post('/logout', authenticate, asyncHandler(c.logout));
   router.post('/avatar', authenticate, upload.single('avatar'), asyncHandler(c.updateAvatar));
+  router.put('/password', authenticate, validateBody(changePasswordSchema), asyncHandler(c.changePassword));
 
   return router;
 }

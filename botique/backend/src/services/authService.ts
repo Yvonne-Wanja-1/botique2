@@ -74,4 +74,13 @@ export class AuthService {
   async updateAvatar(userId: string, avatarUrl: string): Promise<UserRow> {
     return this.userRepo.updateAvatar(userId, avatarUrl);
   }
+
+  async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<void> {
+    const hash = await this.userRepo.getPasswordHash(userId);
+    if (!hash || !(await verifyPassword(currentPassword, hash))) {
+      throw new UnauthorizedError('Incorrect current password');
+    }
+    const newHash = await hashPassword(newPassword);
+    await this.userRepo.updatePassword(userId, newHash);
+  }
 }

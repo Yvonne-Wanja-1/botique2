@@ -171,6 +171,10 @@ class _MenuSection extends StatelessWidget {
         context.push('/account/installments');
       case 'Notifications':
         context.push('/account/notifications');
+      case 'My Wishlist':
+        context.push('/account/wishlist');
+      case 'Change Password':
+        context.push('/account/change-password');
       default:
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('$label coming soon')),
