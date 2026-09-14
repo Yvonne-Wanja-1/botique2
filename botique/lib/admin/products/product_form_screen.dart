@@ -157,6 +157,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
         for (final v in _variants)
           if (v.sku.text.trim().isNotEmpty)
             ProductVariantDraft(
+              id: v.id,
               sku: v.sku.text.trim(),
               size: _emptyToNull(v.size.text),
               color: _emptyToNull(v.color.text),
@@ -486,15 +487,17 @@ class _VariantField {
 
   factory _VariantField.fromVariant(ProductVariant variant) {
     final field = _VariantField()
+      ..id = variant.id
       ..sku.text = variant.sku ?? ''
       ..size.text = variant.size ?? ''
       ..color.text = variant.color ?? ''
       ..shade.text = variant.shade ?? ''
-      ..price.text = variant.quantity == 0 ? '' : ''
+      ..price.text = variant.price != null ? variant.price!.toStringAsFixed(2) : ''
       ..stock.text = variant.quantity.toString();
     return field;
   }
 
+  String? id;
   final sku = TextEditingController();
   final size = TextEditingController();
   final color = TextEditingController();

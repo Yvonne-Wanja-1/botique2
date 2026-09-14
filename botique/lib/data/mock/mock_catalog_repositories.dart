@@ -146,6 +146,15 @@ class MockProductRepository implements ProductRepository {
   }
 
   @override
+  Future<void> activate(String id) async {
+    final index = _products.indexWhere((p) => p.id == id);
+    if (index >= 0) {
+      final p = _products[index];
+      _products[index] = _copyWith(p, status: ProductStatus.active);
+    }
+  }
+
+  @override
   Future<List<ProductImage>> getImages(String productId) async {
     return List.of(_imageRecords[productId] ?? const []);
   }

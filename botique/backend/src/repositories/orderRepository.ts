@@ -137,21 +137,43 @@ export class OrderRepository {
 
       const variantIds = input.items.map((i) => i.variantId).filter((v): v is string => v !== null);
       const placeholders = variantIds.map((_, i) => `$${i + 1}`).join(', ');
-      const vres = await client.query(
-        `SELECT v.id, v.product_id, v.stock_qty, v.size, v.color, v.shade, p.name,
-                COALESCE(p.discount_price, p.base_price) AS unit_price
-         FROM product_variants v JOIN products p ON p.id = v.product_id
-         WHERE v.id IN (${placeholders}) AND v.is_active = TRUE AND p.status = 'active'
-         FOR UPDATE`,
-        variantIds,
-      );
-      const variantMap = new Map(vres.rows.map((r) => [r.id, r]));
+      const vres = variantIds.length
+        ? await client.query(
+            `SELECT v.id, v.product_id, v.stock_qty, v.size, v.color, v.shade, p.name,
+                    COALESCE(v.price, p.discount_price, p.base_price) AS unit_price
+             FROM product_variants v JOIN products p ON p.id = v.product_id
+             WHERE v.id IN (${placeholders}) AND v.is_active = TRUE AND p.status = 'active'
+             FOR UPDATE`,
+            variantIds,
+          )
+        : { rows: [] as Record<string, unknown>[] };
+      const variantMap = new Map(vres.rows.map((r) => [String(r.id), r]));
+
+      const productIds = input.items
+        .filter((i) => !i.variantId)
+        .map((i) => i.productId);
+      const productPlaceholders = productIds.map((_, i) => `$${i + 1}`).join(', ');
+      const pres = productIds.length
+        ? await client.query(
+            `SELECT p.id, p.name, COALESCE(p.discount_price, p.base_price) AS unit_price
+             FROM products p WHERE p.id IN (${productPlaceholders}) AND p.status = 'active'`,
+            productIds,
+          )
+        : { rows: [] as Record<string, unknown>[] };
+      const productMap = new Map(pres.rows.map((r) => [String(r.id), r]));
+
       let subtotal = 0;
       for (const item of input.items) {
-        const v = variantMap.get(item.variantId ?? '');
-        if (!v) throw new NotFoundError(`Variant ${item.variantId ?? '?'} not found`);
-        if (toNumber(v.stock_qty) < item.quantity) throw new ConflictError('Insufficient stock for one or more items');
-        subtotal += Number(v.unit_price) * item.quantity;
+        if (item.variantId) {
+          const v = variantMap.get(item.variantId);
+          if (!v) throw new NotFoundError(`Variant ${item.variantId} not found`);
+          if (toNumber(v.stock_qty) < item.quantity) throw new ConflictError('Insufficient stock for one or more items');
+          subtotal += Number(v.unit_price) * item.quantity;
+        } else {
+          const p = productMap.get(item.productId);
+          if (!p) throw new NotFoundError(`Product ${item.productId} not found`);
+          subtotal += Number(p.unit_price) * item.quantity;
+        }
       }
 
       let discountAmount = 0;
@@ -200,18 +222,28 @@ export class OrderRepository {
       );
 
       for (const item of input.items) {
-        const v = variantMap.get(item.variantId ?? '')!;
-        const unitPrice = Number(v.unit_price);
-        const variantLabel = [v.size, v.color, v.shade].filter((x) => x).join(' / ') || null;
-        await client.query(
-          `INSERT INTO order_items (id, order_id, product_id, variant_id, product_name, variant_label, unit_price, quantity, line_total)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-          [randomUUID(), orderId, item.productId, item.variantId, v.name, variantLabel, unitPrice, item.quantity, unitPrice * item.quantity],
-        );
-        await client.query(
-          'UPDATE product_variants SET stock_qty = stock_qty - $2::int, updated_at = now() WHERE id = $1',
-          [item.variantId, item.quantity],
-        );
+        if (item.variantId) {
+          const v = variantMap.get(item.variantId)!;
+          const unitPrice = Number(v.unit_price);
+          const variantLabel = [v.size, v.color, v.shade].filter((x) => x).join(' / ') || null;
+          await client.query(
+            `INSERT INTO order_items (id, order_id, product_id, variant_id, product_name, variant_label, unit_price, quantity, line_total)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+            [randomUUID(), orderId, item.productId, item.variantId, v.name, variantLabel, unitPrice, item.quantity, unitPrice * item.quantity],
+          );
+          await client.query(
+            'UPDATE product_variants SET stock_qty = stock_qty - $2::int, updated_at = now() WHERE id = $1',
+            [item.variantId, item.quantity],
+          );
+        } else {
+          const p = productMap.get(item.productId)!;
+          const unitPrice = Number(p.unit_price);
+          await client.query(
+            `INSERT INTO order_items (id, order_id, product_id, variant_id, product_name, variant_label, unit_price, quantity, line_total)
+             VALUES ($1,$2,$3,NULL,$4,NULL,$5,$6,$7)`,
+            [randomUUID(), orderId, item.productId, p.name, unitPrice, item.quantity, unitPrice * item.quantity],
+          );
+        }
       }
 
       // Increment promo usage count

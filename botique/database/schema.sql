@@ -80,7 +80,7 @@ CREATE TABLE products (
   brand_id        UUID NOT NULL REFERENCES brands(id),
   base_price      NUMERIC(10,2) NOT NULL CHECK (base_price >= 0),
   discount_price  NUMERIC(10,2) CHECK (discount_price IS NULL OR (discount_price >= 0 AND discount_price < base_price)),
-  stock_threshold INTEGER NOT NULL DEFAULT 5 CHECK (stock_threshold >= 0),
+  stock_threshold INTEGER NOT NULL DEFAULT 1 CHECK (stock_threshold >= 0),
   status          product_status NOT NULL DEFAULT 'active',
   rating          NUMERIC(3,2) NOT NULL DEFAULT 0 CHECK (rating >= 0 AND rating <= 5),
   review_count    INTEGER NOT NULL DEFAULT 0 CHECK (review_count >= 0),

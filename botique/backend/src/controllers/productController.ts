@@ -57,6 +57,11 @@ export function productController(productService: ProductService) {
       ok(res, { id: req.params.id, status: 'inactive' });
     },
 
+    async activate(req: Request, res: Response): Promise<void> {
+      await productService.activate(req.params.id);
+      ok(res, { id: req.params.id, status: 'active' });
+    },
+
     async listImages(req: Request, res: Response): Promise<void> {
       ok(res, await productService.getImages(req.params.id));
     },

@@ -46,18 +46,26 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
   Future<void> _toggle(Product product) async {
     final service = context.read<AdminCatalogService>();
+    final isInactive = product.status == ProductStatus.inactive;
     final ok = await confirmDialog(
       context,
-      title: 'Deactivate product?',
-      message: '${product.name} will no longer be visible in the storefront.',
-      isDanger: true,
+      title: isInactive ? 'Reactivate product?' : 'Deactivate product?',
+      message: isInactive
+          ? '${product.name} will be visible in the storefront again.'
+          : '${product.name} will no longer be visible in the storefront.',
+      isDanger: !isInactive,
     );
     if (ok) {
       try {
-        await service.deactivate(product.id);
-        if (mounted) showSuccessSnack(context, 'Product deactivated');
+        if (isInactive) {
+          await service.activate(product.id);
+          if (mounted) showSuccessSnack(context, 'Product activated');
+        } else {
+          await service.deactivate(product.id);
+          if (mounted) showSuccessSnack(context, 'Product deactivated');
+        }
       } catch (e) {
-        if (mounted) showErrorSnack(context, 'Failed to deactivate: $e');
+        if (mounted) showErrorSnack(context, 'Failed: $e');
       }
     }
   }
@@ -191,7 +199,10 @@ class _ProductRow extends StatelessWidget {
               },
               itemBuilder: (context) => [
                 const PopupMenuItem(value: 'edit', child: Text('Edit')),
-                const PopupMenuItem(value: 'toggle', child: Text('Deactivate')),
+                PopupMenuItem(
+                  value: 'toggle',
+                  child: Text(product.status == ProductStatus.inactive ? 'Reactivate' : 'Deactivate'),
+                ),
               ],
             ),
           ],

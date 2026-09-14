@@ -16,8 +16,8 @@ import 'api_client.dart';
 const bool kUseApi = !bool.fromEnvironment('USE_MOCK');
 
 /// Base URL for the Queens' Touch API backend.
-/// On Android emulator use http://10.0.2.2:3000, on LAN use your machine IP.
-const String kApiBaseUrl = String.fromEnvironment('API_BASE_URL', defaultValue: 'http://192.168.100.12:3000');
+/// Override with --dart-define=API_BASE_URL=... at build time.
+const String kApiBaseUrl = String.fromEnvironment('API_BASE_URL', defaultValue: 'http://localhost:3000');
 
 ApiClient createApiClient() => ApiClient(baseUrl: kApiBaseUrl);
 

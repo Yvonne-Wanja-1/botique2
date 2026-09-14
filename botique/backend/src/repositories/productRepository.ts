@@ -26,6 +26,7 @@ export interface ProductSearchParams {
 }
 
 export interface VariantInput {
+  id?: string;
   sku: string;
   size?: string | null;
   color?: string | null;
@@ -281,31 +282,79 @@ export class ProductRepository {
   }
 
   async update(id: string, input: Partial<CreateProductInput>): Promise<Product | null> {
-    await this.pool.query(
-      `UPDATE products SET
-         name = COALESCE($2, name),
-         slug = COALESCE($3, slug),
-         description = COALESCE($4, description),
-         category_id = COALESCE($5, category_id),
-         brand_id = COALESCE($6, brand_id),
-         base_price = COALESCE($7, base_price),
-         discount_price = $8,
-         stock_threshold = COALESCE($9, stock_threshold),
-         is_featured = COALESCE($10, is_featured),
-         is_new_arrival = COALESCE($11, is_new_arrival),
-         is_best_seller = COALESCE($12, is_best_seller),
-         is_trending = COALESCE($13, is_trending),
-         updated_at = now()
-       WHERE id = $1`,
-      [
-        id, input.name ?? null, input.slug ?? null, input.description ?? null,
-        input.categoryId ?? null, input.brandId ?? null, input.basePrice ?? null,
-        input.discountPrice === undefined ? null : input.discountPrice,
-        input.stockThreshold ?? null, input.isFeatured ?? null, input.isNewArrival ?? null,
-        input.isBestSeller ?? null, input.isTrending ?? null,
-      ],
-    );
-    return this.findById(id);
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        `UPDATE products SET
+           name = COALESCE($2, name),
+           slug = COALESCE($3, slug),
+           description = COALESCE($4, description),
+           category_id = COALESCE($5, category_id),
+           brand_id = COALESCE($6, brand_id),
+           base_price = COALESCE($7, base_price),
+           discount_price = $8,
+           stock_threshold = COALESCE($9, stock_threshold),
+           is_featured = COALESCE($10, is_featured),
+           is_new_arrival = COALESCE($11, is_new_arrival),
+           is_best_seller = COALESCE($12, is_best_seller),
+           is_trending = COALESCE($13, is_trending),
+           specifications = COALESCE($14, specifications),
+           updated_at = now()
+         WHERE id = $1`,
+        [
+          id, input.name ?? null, input.slug ?? null, input.description ?? null,
+          input.categoryId ?? null, input.brandId ?? null, input.basePrice ?? null,
+          input.discountPrice === undefined ? null : input.discountPrice,
+          input.stockThreshold ?? null, input.isFeatured ?? null, input.isNewArrival ?? null,
+          input.isBestSeller ?? null, input.isTrending ?? null,
+          input.specifications ? JSON.stringify(input.specifications) : null,
+        ],
+      );
+
+      if (input.variants) {
+        const existing = await client.query(
+          'SELECT id FROM product_variants WHERE product_id = $1',
+          [id],
+        );
+        const existingIds = new Set(existing.rows.map((r: Record<string, unknown>) => String(r.id)));
+        const incomingIds = new Set<string>();
+
+        for (const v of input.variants) {
+          if (v.id && existingIds.has(v.id)) {
+            incomingIds.add(v.id);
+            await client.query(
+              `UPDATE product_variants
+               SET sku = $2, size = $3, color = $4, shade = $5, price = $6, stock_qty = $7, updated_at = now()
+               WHERE id = $1`,
+              [v.id, v.sku, v.size ?? null, v.color ?? null, v.shade ?? null, v.price ?? null, v.stockQty],
+            );
+          } else {
+            const newId = randomUUID();
+            incomingIds.add(newId);
+            await client.query(
+              `INSERT INTO product_variants (id, product_id, sku, size, color, shade, price, stock_qty)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+              [newId, id, v.sku, v.size ?? null, v.color ?? null, v.shade ?? null, v.price ?? null, v.stockQty],
+            );
+          }
+        }
+
+        for (const oldId of existingIds) {
+          if (!incomingIds.has(oldId)) {
+            await client.query('DELETE FROM product_variants WHERE id = $1', [oldId]);
+          }
+        }
+      }
+
+      await client.query('COMMIT');
+      return this.findById(id);
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
   }
 
   async setStatus(id: string, status: 'active' | 'inactive' | 'discontinued'): Promise<boolean> {

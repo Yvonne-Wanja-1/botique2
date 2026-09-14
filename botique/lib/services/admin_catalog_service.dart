@@ -63,6 +63,11 @@ class AdminCatalogService extends ChangeNotifier {
     await load();
   }
 
+  Future<void> activate(String id) async {
+    await _productRepo.activate(id);
+    await load();
+  }
+
   Future<Product?> getById(String id) => _productRepo.getById(id);
 
   Future<List<Category>> getSubcategories(String parentId) =>
