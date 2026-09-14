@@ -51,6 +51,10 @@ export class ProductService {
     const ok = await this.productRepo.setStatus(id, 'inactive');
     if (!ok) throw new NotFoundError('Product not found');
   }
+  async activate(id: string): Promise<void> {
+    const ok = await this.productRepo.setStatus(id, 'active');
+    if (!ok) throw new NotFoundError('Product not found');
+  }
   getImages(productId: string) {
     return this.productRepo.getImages(productId);
   }

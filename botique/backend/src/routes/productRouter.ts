@@ -47,6 +47,7 @@ export function productRouter(productService: ProductService, options: { uploads
   router.post('/', staffRoles, validateBody(productSchema), asyncHandler(c.create));
   router.patch('/:id', staffRoles, validateBody(productObjectSchema.partial()), asyncHandler(c.update));
   router.delete('/:id', staffRoles, asyncHandler(c.deactivate));
+  router.post('/:id/activate', staffRoles, asyncHandler(c.activate));
 
   return router;
 }

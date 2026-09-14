@@ -7,15 +7,20 @@ class ApiReportRepository implements ReportRepository {
 
   final ApiClient _client;
 
+  Map<String, dynamic> _dates({String? from, String? to}) => {
+        if (from != null && from.isNotEmpty) 'from': from,
+        if (to != null && to.isNotEmpty) 'to': to,
+      };
+
   @override
   Future<SalesSummary> getSalesSummary({String? from, String? to}) async {
-    final data = await _client.get('/api/reports/sales-summary', query: {'from': from, 'to': to});
+    final data = await _client.get('/api/reports/sales-summary', query: _dates(from: from, to: to));
     return SalesSummary.fromJson(data as Map<String, dynamic>);
   }
 
   @override
   Future<List<SalesRow>> getSalesReport({String? from, String? to}) async {
-    final data = await _client.get('/api/reports/sales', query: {'from': from, 'to': to});
+    final data = await _client.get('/api/reports/sales', query: _dates(from: from, to: to));
     return (data as List<dynamic>)
         .map((e) => SalesRow.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -23,7 +28,7 @@ class ApiReportRepository implements ReportRepository {
 
   @override
   Future<List<TopProduct>> getTopProducts({String? from, String? to}) async {
-    final data = await _client.get('/api/reports/top-products', query: {'from': from, 'to': to});
+    final data = await _client.get('/api/reports/top-products', query: _dates(from: from, to: to));
     return (data as List<dynamic>)
         .map((e) => TopProduct.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -45,19 +50,19 @@ class ApiReportRepository implements ReportRepository {
 
   @override
   Future<CustomerSummary> getCustomerSummary({String? from, String? to}) async {
-    final data = await _client.get('/api/reports/customer-summary', query: {'from': from, 'to': to});
+    final data = await _client.get('/api/reports/customer-summary', query: _dates(from: from, to: to));
     return CustomerSummary.fromJson(data as Map<String, dynamic>);
   }
 
   @override
   Future<OrdersSummary> getOrdersSummary({String? from, String? to}) async {
-    final data = await _client.get('/api/reports/orders', query: {'from': from, 'to': to});
+    final data = await _client.get('/api/reports/orders', query: _dates(from: from, to: to));
     return OrdersSummary.fromJson(data as Map<String, dynamic>);
   }
 
   @override
   Future<PaymentsSummary> getPaymentsSummary({String? from, String? to}) async {
-    final data = await _client.get('/api/reports/payments', query: {'from': from, 'to': to});
+    final data = await _client.get('/api/reports/payments', query: _dates(from: from, to: to));
     return PaymentsSummary.fromJson(data as Map<String, dynamic>);
   }
 

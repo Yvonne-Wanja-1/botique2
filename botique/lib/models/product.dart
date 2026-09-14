@@ -58,6 +58,7 @@ class ProductVariant {
     this.shade,
     required this.quantity,
     this.sku,
+    this.price,
   });
 
   factory ProductVariant.fromJson(Map<String, dynamic> json) {
@@ -69,6 +70,7 @@ class ProductVariant {
       shade: json['shade'] as String?,
       quantity: quantity is num ? quantity.toInt() : 0,
       sku: json['sku'] as String?,
+      price: (json['price'] as num?)?.toDouble(),
     );
   }
 
@@ -78,6 +80,7 @@ class ProductVariant {
   final String? shade;
   final int quantity;
   final String? sku;
+  final double? price;
 
   String get label => [
         if (size != null) 'Size: $size',
@@ -89,6 +92,7 @@ class ProductVariant {
 /// A variant definition used when creating/updating a product.
 class ProductVariantDraft {
   const ProductVariantDraft({
+    this.id,
     required this.sku,
     this.size,
     this.color,
@@ -97,6 +101,7 @@ class ProductVariantDraft {
     this.stockQty = 0,
   });
 
+  final String? id;
   final String sku;
   final String? size;
   final String? color;
@@ -105,6 +110,7 @@ class ProductVariantDraft {
   final int stockQty;
 
   Map<String, dynamic> toJson() => {
+        if (id != null) 'id': id,
         'sku': sku,
         'size': size,
         'color': color,
@@ -124,7 +130,7 @@ class ProductDraft {
     this.slug,
     this.description = '',
     this.discountPrice,
-    this.stockThreshold = 5,
+    this.stockThreshold = 1,
     this.isFeatured = false,
     this.isNewArrival = false,
     this.isBestSeller = false,
@@ -187,7 +193,7 @@ class Product {
     this.discountPrice,
     this.variants = const [],
     this.specifications = const {},
-    this.stockThreshold = 5,
+    this.stockThreshold = 1,
     this.status = ProductStatus.active,
     this.labels = const {},
     this.rating = 0,
@@ -222,7 +228,7 @@ class Product {
           .toList() ??
           const [],
       specifications: (json['specifications'] as Map?)?.cast<String, String>() ?? const {},
-      stockThreshold: _asInt(json['stockThreshold'] ?? 5),
+      stockThreshold: _asInt(json['stockThreshold'] ?? 1),
       status: status,
       labels: _labelsFromJson(json),
       rating: _asDouble(json['rating'] ?? 0),

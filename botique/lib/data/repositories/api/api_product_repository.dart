@@ -87,6 +87,11 @@ class ApiProductRepository implements ProductRepository {
   }
 
   @override
+  Future<void> activate(String id) async {
+    await _client.post('/api/products/$id/activate');
+  }
+
+  @override
   Future<List<ProductImage>> getImages(String productId) async {
     final data = await _client.get('/api/products/$productId/images');
     return (data as List<dynamic>)

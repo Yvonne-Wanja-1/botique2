@@ -114,6 +114,7 @@ abstract class ProductRepository {
   Future<Product> create(ProductDraft draft);
   Future<Product> update(String id, ProductDraft draft);
   Future<void> deactivate(String id);
+  Future<void> activate(String id);
   Future<List<ProductImage>> getImages(String productId);
   Future<List<ProductImage>> uploadImages(String productId, List<UploadImage> images);
   Future<void> deleteImage(String productId, String imageId);

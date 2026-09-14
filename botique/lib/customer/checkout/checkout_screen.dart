@@ -339,8 +339,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 hintText: 'Paste the full M-Pesa confirmation message you received after paying',
                 alignLabelWithHint: true,
               ),
-              validator: (v) =>
-                  v == null || v.trim().isEmpty ? 'Required — paste your M-Pesa confirmation' : null,
+              validator: (v) => null,
             ),
             const SizedBox(height: 8),
             SwitchListTile(

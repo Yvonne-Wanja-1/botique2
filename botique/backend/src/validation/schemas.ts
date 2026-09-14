@@ -7,6 +7,7 @@ const nonNegativeInt = z.number().int().nonnegative();
 
 export const variantSchema = z
   .object({
+    id: uuid.optional(),
     sku: z.string().min(1),
     size: z.string().optional().nullable(),
     color: z.string().optional().nullable(),
@@ -24,7 +25,7 @@ export const productObjectSchema = z.object({
   brandId: uuid,
   basePrice: money,
   discountPrice: money.nullable().optional(),
-  stockThreshold: nonNegativeInt.default(5),
+  stockThreshold: nonNegativeInt.default(1),
   isFeatured: z.boolean().default(false),
   isNewArrival: z.boolean().default(false),
   isBestSeller: z.boolean().default(false),
@@ -78,7 +79,7 @@ export const placeOrderSchema = z.object({
   installmentRequested: z.boolean().default(false),
   confirmationMessage: z.string().optional().nullable(),
   items: z
-    .array(z.object({ productId: uuid, variantId: uuid.nullable(), quantity: positiveInt }))
+    .array(z.object({ productId: uuid, variantId: uuid.nullable().optional(), quantity: positiveInt }))
     .min(1),
 });
 
