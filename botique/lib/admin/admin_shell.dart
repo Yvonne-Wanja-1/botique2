@@ -28,8 +28,21 @@ class AdminShell extends StatefulWidget {
   State<AdminShell> createState() => _AdminShellState();
 }
 
+class AdminNav extends InheritedWidget {
+  const AdminNav({super.key, required this.onNavigate, required super.child});
+
+  final void Function(int) onNavigate;
+
+  static AdminNav? of(BuildContext context) => context.dependOnInheritedWidgetOfExactType<AdminNav>();
+
+  @override
+  bool updateShouldNotify(AdminNav oldWidget) => false;
+}
+
 class _AdminShellState extends State<AdminShell> {
   int _index = 0;
+
+  void _navigateTo(int index) => setState(() => _index = index);
 
   List<_AdminSection> _sections(Role role) {
     final all = _AdminSection.all;
@@ -41,9 +54,12 @@ class _AdminShellState extends State<AdminShell> {
     final auth = context.watch<AuthService>();
     final sections = _sections(auth.role);
     final section = sections[_index.clamp(0, sections.length - 1)];
+    final isMobile = MediaQuery.sizeOf(context).width < 600;
 
-    return Scaffold(
-      appBar: AppBar(
+    return AdminNav(
+      onNavigate: _navigateTo,
+      child: Scaffold(
+        appBar: AppBar(
         title: Text(
           section.label,
           style: const TextStyle(fontWeight: FontWeight.w700),
@@ -59,30 +75,56 @@ class _AdminShellState extends State<AdminShell> {
           _UserMenu(),
         ],
       ),
-      body: Row(
-        children: [
-          Container(
-            width: 220,
-            color: QueensTouchColors.surfaceLight,
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (var i = 0; i < sections.length; i++)
-                    _NavDestination(
-                      selected: i == _index,
-                      icon: sections[i].icon,
-                      label: sections[i].label,
-                      onTap: () => setState(() => _index = i),
-                    ),
-                ],
+      drawer: isMobile
+          ? Drawer(
+              backgroundColor: QueensTouchColors.surfaceLight,
+              child: SafeArea(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SizedBox(height: 8),
+                    for (var i = 0; i < sections.length; i++)
+                      _NavDestination(
+                        selected: i == _index,
+                        icon: sections[i].icon,
+                        label: sections[i].label,
+                        onTap: () {
+                          setState(() => _index = i);
+                          Navigator.pop(context);
+                        },
+                      ),
+                  ],
+                ),
               ),
+            )
+          : null,
+      body: isMobile
+          ? section.builder(context)
+          : Row(
+              children: [
+                Container(
+                  width: 220,
+                  color: QueensTouchColors.surfaceLight,
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        for (var i = 0; i < sections.length; i++)
+                          _NavDestination(
+                            selected: i == _index,
+                            icon: sections[i].icon,
+                            label: sections[i].label,
+                            onTap: () => setState(() => _index = i),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+                const VerticalDivider(width: 1),
+                Expanded(child: section.builder(context)),
+              ],
             ),
-          ),
-          const VerticalDivider(width: 1),
-          Expanded(child: section.builder(context)),
-        ],
       ),
     );
   }

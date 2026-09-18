@@ -100,7 +100,11 @@ class ProductCard extends StatelessWidget {
                 Positioned(
                   right: 6,
                   bottom: 6,
-                  child: _CardWishlist(productId: product.id),
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () {},
+                    child: _CardWishlist(productId: product.id),
+                  ),
                 ),
               ],
             ),

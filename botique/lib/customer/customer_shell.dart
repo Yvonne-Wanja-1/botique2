@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/theme/theme.dart';
+import '../core/widgets/floating_navbar.dart';
 import '../customer/home/home_screen.dart';
 import '../customer/catalog/categories_screen.dart';
 import '../customer/catalog/catalog_screen.dart';
@@ -23,9 +24,9 @@ class CustomerShell extends StatefulWidget {
 }
 
 class _CustomerShellState extends State<CustomerShell> {
-  int _index = 0;
+  int _index = 2;
 
-  static const _titles = ['Queens\' Touch', 'Categories', 'My Cart', 'Wishlist', 'My Account'];
+  static const _titles = ['Categories', 'My Cart', 'Queens\' Touch', 'Wishlist', 'My Account'];
 
   @override
   Widget build(BuildContext context) {
@@ -77,61 +78,47 @@ class _CustomerShellState extends State<CustomerShell> {
       body: IndexedStack(
         index: _index,
         children: const [
-          HomeScreen(),
           CategoriesScreen(),
           CartScreen(),
+          HomeScreen(),
           WishlistScreen(),
           AccountScreen(),
         ],
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
-        destinations: [
-          const NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'Home',
-          ),
-          const NavigationDestination(
-            icon: Icon(Icons.category_outlined),
-            selectedIcon: Icon(Icons.category),
-            label: 'Categories',
-          ),
-          NavigationDestination(
-            icon: Consumer<CartService>(
-              builder: (context, cart, _) => Badge(
-                isLabelVisible: cart.itemCount > 0,
-                label: Text('${cart.itemCount}'),
-                child: const Icon(Icons.shopping_cart_outlined),
-              ),
+      bottomNavigationBar: Consumer2<CartService, WishlistService>(
+        builder: (context, cart, wishlist, _) => FloatingNavbar(
+          selectedIndex: _index,
+          onTap: (i) => setState(() => _index = i),
+          items: [
+            const FloatingNavItem(
+              icon: Icons.category_outlined,
+              activeIcon: Icons.category,
+              label: 'Categories',
             ),
-            selectedIcon: Consumer<CartService>(
-              builder: (context, cart, _) => Badge(
-                isLabelVisible: cart.itemCount > 0,
-                label: Text('${cart.itemCount}'),
-                child: const Icon(Icons.shopping_cart),
-              ),
+            FloatingNavItem(
+              icon: Icons.shopping_cart_outlined,
+              activeIcon: Icons.shopping_cart,
+              label: 'Cart',
+              badge: cart.itemCount > 0 ? cart.itemCount : null,
             ),
-            label: 'Cart',
-          ),
-          NavigationDestination(
-            icon: Consumer<WishlistService>(
-              builder: (context, wishlist, _) => Badge(
-                isLabelVisible: wishlist.itemCount > 0,
-                label: Text('${wishlist.itemCount}'),
-                child: const Icon(Icons.favorite_outline),
-              ),
+            const FloatingNavItem(
+              icon: Icons.home_outlined,
+              activeIcon: Icons.home,
+              label: 'Home',
             ),
-            selectedIcon: const Icon(Icons.favorite),
-            label: 'Wishlist',
-          ),
-          const NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'Account',
-          ),
-        ],
+            FloatingNavItem(
+              icon: Icons.favorite_outline,
+              activeIcon: Icons.favorite,
+              label: 'Wishlist',
+              badge: wishlist.itemCount > 0 ? wishlist.itemCount : null,
+            ),
+            const FloatingNavItem(
+              icon: Icons.person_outline,
+              activeIcon: Icons.person,
+              label: 'Account',
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -184,24 +171,24 @@ class _CustomerShellState extends State<CustomerShell> {
             ),
             const SizedBox(height: 8),
             ListTile(
-              leading: const Icon(Icons.home_outlined),
-              title: const Text('Home'),
+              leading: const Icon(Icons.category_outlined),
+              title: const Text('Categories'),
               onTap: () {
                 Navigator.pop(context);
                 setState(() => _index = 0);
               },
             ),
             ListTile(
-              leading: const Icon(Icons.category_outlined),
-              title: const Text('Categories'),
+              leading: const Icon(Icons.shopping_cart_outlined),
+              title: const Text('My Cart'),
               onTap: () {
                 Navigator.pop(context);
                 setState(() => _index = 1);
               },
             ),
             ListTile(
-              leading: const Icon(Icons.shopping_cart_outlined),
-              title: const Text('My Cart'),
+              leading: const Icon(Icons.home_outlined),
+              title: const Text('Home'),
               onTap: () {
                 Navigator.pop(context);
                 setState(() => _index = 2);

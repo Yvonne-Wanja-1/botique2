@@ -148,14 +148,14 @@ class _CampaignHero extends StatelessWidget {
                     ),
                     Positioned.fill(
                       child: Align(
-                        alignment: Alignment.center,
+                        alignment: const Alignment(0, -0.55),
                         child: ClipOval(
                           child: Opacity(
                             opacity: 0.9,
                             child: const Image(
                               image: AssetImage('lib/assets/images/icon.jpeg'),
-                              width: 180,
-                              height: 180,
+                              width: 130,
+                              height: 130,
                               fit: BoxFit.cover,
                             ),
                           ),
@@ -163,29 +163,16 @@ class _CampaignHero extends StatelessWidget {
                       ),
                     ),
                     Positioned(
-                      left: 20,
                       right: 20,
                       bottom: 24,
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           StaggerReveal(
                             index: 0,
                             child: Text(
-                              'THE NEW COLLECTION',
-                              style: TextStyle(
-                                color: QueensTouchColors.goldLight,
-                                fontSize: 12,
-                                letterSpacing: 4,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          StaggerReveal(
-                            index: 1,
-                            child: Text(
                               'Elegance is in\nher every step',
+                              textAlign: TextAlign.end,
                               style: QueensTouchTheme.brandSerif(
                                 fontSize: 34,
                                 weight: FontWeight.w600,
@@ -196,7 +183,7 @@ class _CampaignHero extends StatelessWidget {
                           ),
                           const SizedBox(height: 18),
                           StaggerReveal(
-                            index: 2,
+                            index: 1,
                             child: ElevatedButton(
                               onPressed: () {
                                 Navigator.of(context).push(

@@ -9,6 +9,7 @@ import '../../core/utils/currency.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../data/repositories/report_repository.dart';
 import '../../models/report.dart';
+import '../admin_shell.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -145,37 +146,56 @@ class _DashboardScreenState extends State<DashboardScreen> {
           const SizedBox(height: 16),
         ],
         if (data.installments.pendingApproval > 0) ...[
-          _PendingCard(count: data.installments.pendingApproval, onTap: () {}),
+          _PendingCard(
+            count: data.installments.pendingApproval,
+            icon: Icons.calendar_month,
+            color: QueensTouchColors.plumLight,
+            onTap: () => AdminNav.of(context)?.onNavigate(5),
+          ),
           const SizedBox(height: 16),
         ],
         if (data.payments.pendingVerification > 0) ...[
           _PendingCard(
             count: data.payments.pendingVerification,
             message: 'payment',
-            onTap: () {},
+            icon: Icons.payments_outlined,
+            color: QueensTouchColors.gold,
+            onTap: () => AdminNav.of(context)?.onNavigate(4),
           ),
           const SizedBox(height: 16),
         ],
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              flex: 2,
-              child: _SalesTrendChart(daily: sales.daily),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: data.bestSellers.isEmpty
-                  ? const Card(
-                      child: Padding(
-                        padding: EdgeInsets.all(16),
-                        child: EmptyState(icon: Icons.star_outline, title: 'No best sellers yet'),
-                      ),
-                    )
-                  : BestSellers(products: data.bestSellers),
-            ),
-          ],
-        ),
+        if (Responsive.isMobile(context)) ...[
+          _SalesTrendChart(daily: sales.daily),
+          const SizedBox(height: 16),
+          data.bestSellers.isEmpty
+              ? const Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: EmptyState(icon: Icons.star_outline, title: 'No best sellers yet'),
+                  ),
+                )
+              : BestSellers(products: data.bestSellers),
+        ] else
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                flex: 2,
+                child: _SalesTrendChart(daily: sales.daily),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: data.bestSellers.isEmpty
+                    ? const Card(
+                        child: Padding(
+                          padding: EdgeInsets.all(16),
+                          child: EmptyState(icon: Icons.star_outline, title: 'No best sellers yet'),
+                        ),
+                      )
+                    : BestSellers(products: data.bestSellers),
+              ),
+            ],
+          ),
         const SizedBox(height: 16),
         RecentOrders(orders: data.recentOrders),
       ],
@@ -295,6 +315,8 @@ class _StatTile extends StatelessWidget {
             const SizedBox(height: 2),
             Text(
               stat.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(color: QueensTouchColors.textMuted, fontSize: 12),
             ),
           ],
@@ -352,11 +374,19 @@ class _AlertCard extends StatelessWidget {
 }
 
 class _PendingCard extends StatelessWidget {
-  const _PendingCard({required this.count, required this.onTap, this.message = 'installment request'});
+  const _PendingCard({
+    required this.count,
+    required this.onTap,
+    this.message = 'installment request',
+    this.icon = Icons.pending_actions,
+    this.color = QueensTouchColors.plum,
+  });
 
   final int count;
   final String message;
   final VoidCallback onTap;
+  final IconData icon;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
@@ -364,7 +394,7 @@ class _PendingCard extends StatelessWidget {
     return Card(
       color: QueensTouchColors.blushLight,
       child: ListTile(
-        leading: const Icon(Icons.pending_actions, color: QueensTouchColors.plum),
+        leading: Icon(icon, color: color),
         title: Text(
           '$count $message$plural awaiting ${message == 'payment' ? 'verification' : 'approval'}',
           style: const TextStyle(fontWeight: FontWeight.w600),
@@ -489,7 +519,17 @@ class RecentOrders extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Recent Orders', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+            Row(
+              children: [
+                Expanded(
+                  child: Text('Recent Orders', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                ),
+                TextButton(
+                  onPressed: () => AdminNav.of(context)?.onNavigate(3),
+                  child: const Text('View All'),
+                ),
+              ],
+            ),
             const SizedBox(height: 8),
             if (orders.isEmpty)
               const EmptyState(icon: Icons.receipt_long, title: 'No recent orders')

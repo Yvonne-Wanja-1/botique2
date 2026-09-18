@@ -190,74 +190,75 @@ class _ReportsScreenState extends State<ReportsScreen> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: SizedBox(
-                  height: 40,
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    children: [
-                      for (var i = 0; i < _sections.length; i++)
-                        Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: ChoiceChip(
-                            label: Text(_sections[i]),
-                            selected: _selected == i,
-                            onSelected: (_) {
-                              setState(() => _selected = i);
-                              _reload();
-                            },
-                          ),
+              SizedBox(
+                height: 40,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: [
+                    for (var i = 0; i < _sections.length; i++)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ChoiceChip(
+                          label: Text(_sections[i]),
+                          selected: _selected == i,
+                          onSelected: (_) {
+                            setState(() => _selected = i);
+                            _reload();
+                          },
                         ),
-                    ],
-                  ),
+                      ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 12),
-              PopupMenuButton<String>(
-                tooltip: 'Export',
-                onSelected: _export,
-                itemBuilder: (context) => const [
-                  PopupMenuItem(value: 'PDF', child: Text('Export as PDF')),
-                  PopupMenuItem(value: 'Excel', child: Text('Export as Excel')),
-                  PopupMenuItem(value: 'CSV', child: Text('Export as CSV')),
-                ],
-                child: OutlinedButton.icon(
-                  onPressed: null,
-                  icon: const Icon(Icons.download),
-                  label: const Text('Export'),
+              if (_supportsDateRange) ...[
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: [
+                    for (var i = 0; i < _rangeLabels.length; i++)
+                      ChoiceChip(
+                        label: Text(i == 4 ? _customLabel : _rangeLabels[i]),
+                        selected: _rangeIndex == i,
+                        onSelected: (_) {
+                          if (i == 4) {
+                            _pickCustomRange();
+                          } else {
+                            setState(() => _rangeIndex = i);
+                            _reload();
+                          }
+                        },
+                      ),
+                  ],
                 ),
-              ),
+              ],
             ],
           ),
         ),
-        if (_supportsDateRange)
-          Padding(
-            padding: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Wrap(
-                spacing: 8,
-                children: [
-                  for (var i = 0; i < _rangeLabels.length; i++)
-                    ChoiceChip(
-                      label: Text(i == 4 ? _customLabel : _rangeLabels[i]),
-                      selected: _rangeIndex == i,
-                      onSelected: (_) {
-                        if (i == 4) {
-                          _pickCustomRange();
-                        } else {
-                          setState(() => _rangeIndex = i);
-                          _reload();
-                        }
-                      },
-                    ),
-                ],
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: PopupMenuButton<String>(
+              tooltip: 'Export',
+              onSelected: _export,
+              itemBuilder: (context) => const [
+                PopupMenuItem(value: 'PDF', child: Text('Export as PDF')),
+                PopupMenuItem(value: 'Excel', child: Text('Export as Excel')),
+                PopupMenuItem(value: 'CSV', child: Text('Export as CSV')),
+              ],
+              child: OutlinedButton.icon(
+                onPressed: null,
+                icon: const Icon(Icons.download),
+                label: const Text('Export'),
               ),
             ),
           ),
+        ),
         Expanded(
           child: AnimatedSwitcher(
             duration: QtMotion.reduceMotion(context) ? Duration.zero : QtMotion.normal,
@@ -598,6 +599,7 @@ class _MetricGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = MediaQuery.sizeOf(context).width < 600;
     final valueStyle = Theme.of(context).textTheme.titleLarge?.copyWith(
           fontWeight: FontWeight.w700,
           color: QueensTouchColors.plum,
@@ -605,11 +607,11 @@ class _MetricGrid extends StatelessWidget {
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: isMobile ? 2 : 3,
         mainAxisSpacing: 12,
         crossAxisSpacing: 12,
-        childAspectRatio: 1.6,
+        childAspectRatio: isMobile ? 1.4 : 1.6,
       ),
       itemCount: metrics.length,
       itemBuilder: (context, index) {
