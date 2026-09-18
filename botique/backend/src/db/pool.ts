@@ -7,6 +7,9 @@ export function createPool(config: AppConfig): Pool {
     max: 10,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 3000,
+    ssl: config.databaseUrl.includes('supabase') || config.nodeEnv === 'production'
+      ? { rejectUnauthorized: false }
+      : undefined,
   });
 }
 
