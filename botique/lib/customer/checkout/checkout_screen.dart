@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/animations/fashion_beauty_reveal.dart';
@@ -10,7 +11,6 @@ import '../../data/repositories/commerce_repository.dart';
 import '../../models/order.dart';
 import '../../services/auth_service.dart';
 import '../../services/cart_service.dart';
-import '../orders/submit_payment_screen.dart';
 
 const String kPaybillNumber = '222111';
 const String kPaybillAccount = '65727';
@@ -545,20 +545,48 @@ class _ConfirmationScreen extends StatelessWidget {
                         ),
                       ),
                       const Divider(height: 24),
-                      Text(
-                        'Order Total',
-                        style: const TextStyle(
-                          color: QueensTouchColors.textMuted,
+                      if (order.items.isNotEmpty) ...[
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'Items',
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
                         ),
+                        const SizedBox(height: 8),
+                        for (final item in order.items)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    '${item.productName}${item.variantLabel != null ? ' (${item.variantLabel})' : ''} x${item.quantity}',
+                                    style: const TextStyle(fontSize: 13),
+                                  ),
+                                ),
+                                Text(
+                                  formatKsh(item.lineTotal),
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        const Divider(height: 16),
+                      ],
+                      _Row('Subtotal', formatKsh(order.subtotal)),
+                      if (order.discount > 0)
+                        _Row('Discount', '-${formatKsh(order.discount)}', isDiscount: true),
+                      _Row(
+                        order.shippingFee > 0 ? 'Delivery Fee' : 'Pickup',
+                        order.shippingFee > 0 ? formatKsh(order.shippingFee) : 'Free',
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        formatKsh(order.total),
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 20,
-                        ),
-                      ),
+                      const Divider(height: 16),
+                      _Row('Total', formatKsh(order.total), isTotal: true),
                       if (order.installmentRequested) ...[
                         const Divider(height: 24),
                         const Text(
@@ -574,39 +602,52 @@ class _ConfirmationScreen extends StatelessWidget {
                         ),
                       ],
                       const Divider(height: 24),
-                      const Text(
-                        'How to pay',
-                        style: TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: 8),
-                      const _Row('Paybill Number', kPaybillNumber),
-                      const _Row('Account Number', kPaybillAccount),
-                      _Row('Total', formatKsh(order.total), isTotal: true),
-                      const SizedBox(height: 12),
-                      SizedBox(
+                      Container(
                         width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => SubmitPaymentScreen(
-                                orderId: order.id,
-                                orderNumber: order.orderNumber,
-                                amount: order.total,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: QueensTouchColors.blushLight,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.info_outline,
+                              size: 18,
+                              color: QueensTouchColors.plum,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'You will receive a notification once your order is reviewed and approved by our team.',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: QueensTouchColors.plum,
+                                ),
                               ),
                             ),
-                          ),
-                          child: const Text('Submit Payment Proof'),
+                          ],
                         ),
                       ),
                     ],
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: () =>
-                    Navigator.of(context).popUntil((route) => route.isFirst),
-                child: const Text('Continue Shopping'),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => context.go('/account/orders'),
+                  child: const Text('View My Orders'),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () => context.go('/'),
+                  child: const Text('Continue Shopping'),
+                ),
               ),
             ],
           ),
@@ -615,3 +656,4 @@ class _ConfirmationScreen extends StatelessWidget {
     );
   }
 }
+

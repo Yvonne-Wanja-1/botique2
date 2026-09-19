@@ -133,6 +133,12 @@ class ApiOrderRepository implements OrderRepository {
     return Installment.fromJson(data as Map<String, dynamic>);
   }
 
+  @override
+  Future<Order> updateOrderStatus(String orderId, String status) async {
+    final data = await _client.patch('/api/orders/$orderId/status', body: {'status': status});
+    return Order.fromJson(data as Map<String, dynamic>);
+  }
+
   String _methodToApi(PaymentMethod method) => switch (method) {
         PaymentMethod.cashOnDelivery => 'cash_on_delivery',
         PaymentMethod.bankTransfer => 'bank_transfer',

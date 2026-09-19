@@ -115,4 +115,43 @@ describe('orders API', () => {
     expect(plans.rows).toHaveLength(1);
     expect(plans.rows[0].term_months).toBe(3);
   });
+
+  it('creates customer and staff notifications on order placement', async () => {
+    const res = await request(app).post('/api/orders').set(customer).send(payload);
+    expect(res.status).toBe(201);
+    const orderNumber = res.body.data.orderNumber;
+
+    const custNotifs = await pool.query(
+      "SELECT * FROM notifications WHERE user_id = $1 AND type = 'order' AND body LIKE $2",
+      [customer['x-user-id'], `%${orderNumber}%`],
+    );
+    expect(custNotifs.rows.length).toBeGreaterThanOrEqual(1);
+    expect(custNotifs.rows[0].title).toBe('Order placed');
+
+    const staffNotifs = await pool.query(
+      "SELECT * FROM notifications WHERE type = 'order' AND title LIKE $1",
+      [`%${orderNumber}%`],
+    );
+    const staffRows = staffNotifs.rows.filter(
+      (r: Record<string, unknown>) => r.user_id !== customer['x-user-id'],
+    );
+    expect(staffRows.length).toBeGreaterThanOrEqual(1);
+    expect(staffRows[0].body).toContain('Amara Okafor');
+  });
+
+  it('creates notifications with M-Pesa snippet when confirmationMessage is provided', async () => {
+    const vid2 = '00000000-0000-0000-0000-000000000602';
+    const res = await request(app).post('/api/orders').set(customer).send({
+      ...payload,
+      items: [{ productId: PID, variantId: vid2, quantity: 1 }],
+      confirmationMessage: 'Safaricom Confirmed. KSh 1,500.00 sent to Queens Touch.',
+    });
+    expect(res.status).toBe(201);
+
+    const staffNotifs = await pool.query(
+      "SELECT * FROM notifications WHERE type = 'order' AND body LIKE '%Safaricom%'",
+    );
+    expect(staffNotifs.rows.length).toBeGreaterThanOrEqual(1);
+    expect(staffNotifs.rows[0].body).toContain('Safaricom Confirmed');
+  });
 });

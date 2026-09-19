@@ -51,7 +51,7 @@ export class NotificationRepository {
     await this.pool.query('UPDATE notifications SET is_read = TRUE WHERE user_id = $1', [userId]);
   }
 
-  async create(input: { userId?: string | null; title: string; body: string; type: NotificationType }): Promise<Notification> {
+  async create(input: { userId?: string | null; title: string; body: string; type: NotificationType; target?: 'customer' | 'staff' }): Promise<Notification> {
     const rows: Notification[] = [];
     if (input.userId) {
       const res = await this.pool.query(
@@ -60,14 +60,28 @@ export class NotificationRepository {
       );
       rows.push(this.map(res.rows[0]));
     } else {
-      const res = await this.pool.query(
-        `INSERT INTO notifications (id, user_id, type, title, body)
-         SELECT gen_random_uuid(), u.id, $2, $3, $4 FROM users u
-         WHERE u.role_id = (SELECT id FROM roles WHERE name = 'customer')
-         RETURNING *`,
-        [null, input.type, input.title, input.body],
+      const roleNames = input.target === 'staff'
+        ? ['super_admin', 'store_manager', 'sales_staff', 'inventory_staff']
+        : ['customer'];
+      const idsRes = await this.pool.query(
+        `SELECT id FROM roles WHERE name IN (${roleNames.map((_, i) => `$${i + 1}`).join(', ')})`,
+        roleNames,
       );
-      rows.push(...res.rows.map((r) => this.map(r)));
+      const roleIds: string[] = idsRes.rows.map((r) => String(r.id));
+      for (const roleId of roleIds) {
+        const userRes = await this.pool.query(
+          'SELECT id FROM users WHERE role_id = $1',
+          [roleId],
+        );
+        for (const user of userRes.rows) {
+          const notifId = randomUUID();
+          const res = await this.pool.query(
+            'INSERT INTO notifications (id, user_id, type, title, body) VALUES ($1,$2,$3,$4,$5) RETURNING *',
+            [notifId, String(user.id), input.type, input.title, input.body],
+          );
+          rows.push(this.map(res.rows[0]));
+        }
+      }
     }
     return rows[0];
   }

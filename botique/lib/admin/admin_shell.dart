@@ -6,6 +6,7 @@ import '../core/theme/theme.dart';
 import '../core/utils/image_url.dart';
 import '../models/user.dart';
 import '../services/auth_service.dart';
+import '../services/notification_service.dart';
 import '../admin/dashboard/dashboard_screen.dart';
 import '../admin/products/products_screen.dart';
 import '../admin/inventory/inventory_screen.dart';
@@ -20,6 +21,7 @@ import '../admin/reports/reports_screen.dart';
 import '../admin/staff/staff_screen.dart';
 import '../admin/audit/audit_screen.dart';
 import '../admin/settings/settings_screen.dart';
+import '../customer/account/account_screen.dart';
 
 class AdminShell extends StatefulWidget {
   const AdminShell({super.key});
@@ -65,6 +67,20 @@ class _AdminShellState extends State<AdminShell> {
           style: const TextStyle(fontWeight: FontWeight.w700),
         ),
         actions: [
+          Consumer<NotificationService>(
+            builder: (context, ns, _) {
+              return IconButton(
+                icon: Badge(
+                  isLabelVisible: ns.unreadCount > 0,
+                  label: Text('${ns.unreadCount}'),
+                  child: const Icon(Icons.notifications_outlined),
+                ),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+                ),
+              );
+            },
+          ),
           TextButton.icon(
             onPressed: () {
               context.push('/');

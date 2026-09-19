@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/theme/theme.dart';
 import '../../core/utils/currency.dart';
 import '../../core/widgets/dialogs.dart';
+import '../../data/repositories/commerce_repository.dart';
 import '../../models/order.dart';
 import '../../models/user.dart';
 import '../../services/auth_service.dart';
@@ -16,16 +17,47 @@ class OrdersScreen extends StatefulWidget {
 }
 
 class _OrdersScreenState extends State<OrdersScreen> {
-  final List<Order> _orders = _seedOrders;
+  List<Order> _orders = [];
+  bool _loading = true;
+  String? _error;
   String _query = '';
   int _statusFilter = 0;
 
   static const _statusTabs = ['All', 'Pending', 'Processing', 'Ready', 'Delivered', 'Cancelled'];
 
+  @override
+  void initState() {
+    super.initState();
+    _loadOrders();
+  }
+
+  Future<void> _loadOrders() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final repo = context.read<OrderRepository>();
+      final orders = await repo.getOrders();
+      if (!mounted) return;
+      setState(() {
+        _orders = orders;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Failed to load orders: $e';
+        _loading = false;
+      });
+    }
+  }
+
   List<Order> get _filtered {
     var list = _orders;
     if (_statusFilter > 0) {
-      list = list.where((o) => o.status.index == _statusFilter - 1).toList();
+      final targetStatus = OrderStatus.values[_statusFilter - 1];
+      list = list.where((o) => o.status == targetStatus).toList();
     }
     final q = _query.toLowerCase();
     if (q.isNotEmpty) {
@@ -74,115 +106,51 @@ class _OrdersScreenState extends State<OrdersScreen> {
         ),
         const SizedBox(height: 8),
         Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: _filtered.length,
-            itemBuilder: (context, index) {
-              final order = _filtered[index];
-              return _OrderCard(
-                order: order,
-                onUpdateStatus: (status) => setState(() {
-                  final i = _orders.indexWhere((o) => o.id == order.id);
-                  _orders[i] = _replaceStatus(_orders[i], status);
-                }),
-              );
-            },
-          ),
+          child: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : _error != null
+                  ? Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(_error!, style: const TextStyle(color: QueensTouchColors.danger)),
+                          const SizedBox(height: 12),
+                          ElevatedButton(onPressed: _loadOrders, child: const Text('Retry')),
+                        ],
+                      ),
+                    )
+                  : RefreshIndicator(
+                      onRefresh: _loadOrders,
+                      child: _filtered.isEmpty
+                          ? ListView(
+                              children: const [
+                                SizedBox(height: 80),
+                                Center(child: Text('No orders found')),
+                              ],
+                            )
+                          : ListView.builder(
+                              padding: const EdgeInsets.all(16),
+                              itemCount: _filtered.length,
+                              itemBuilder: (context, index) {
+                                final order = _filtered[index];
+                                return _OrderCard(
+                                  order: order,
+                                  onStatusUpdated: _loadOrders,
+                                );
+                              },
+                            ),
+                    ),
         ),
       ],
     );
   }
-
-  Order _replaceStatus(Order order, OrderStatus status) {
-    return Order(
-      id: order.id,
-      orderNumber: order.orderNumber,
-      customerId: order.customerId,
-      customerName: order.customerName,
-      customerPhone: order.customerPhone,
-      customerEmail: order.customerEmail,
-      shippingAddress: order.shippingAddress,
-      items: order.items,
-      subtotal: order.subtotal,
-      discount: order.discount,
-      shippingFee: order.shippingFee,
-      status: status,
-      paymentStatus: order.paymentStatus,
-      paymentMethod: order.paymentMethod,
-      installmentRequested: order.installmentRequested,
-      createdAt: order.createdAt,
-    );
-  }
-
-  static final List<Order> _seedOrders = [
-    Order(
-      id: 'o1',
-      orderNumber: 'QT-2026-1041',
-      customerId: 'c1',
-      customerName: 'Amara Okafor',
-      customerPhone: '+234 801 234 5678',
-      customerEmail: 'amara@example.com',
-      shippingAddress: '12 Victoria Island, Lagos',
-      items: const [],
-      subtotal: 149.97,
-      status: OrderStatus.delivered,
-      paymentStatus: PaymentStatus.successful,
-      paymentMethod: PaymentMethod.card,
-      createdAt: DateTime.now().subtract(const Duration(days: 5)),
-    ),
-    Order(
-      id: 'o2',
-      orderNumber: 'QT-2026-1042',
-      customerId: 'c2',
-      customerName: 'Zainab Bello',
-      customerPhone: '+234 803 555 1212',
-      customerEmail: 'zainab@example.com',
-      shippingAddress: '4 Garki, Abuja',
-      items: const [],
-      subtotal: 89.99,
-      status: OrderStatus.processing,
-      paymentStatus: PaymentStatus.successful,
-      paymentMethod: PaymentMethod.card,
-      createdAt: DateTime.now().subtract(const Duration(days: 2)),
-    ),
-    Order(
-      id: 'o3',
-      orderNumber: 'QT-2026-1043',
-      customerId: 'c3',
-      customerName: 'Chioma Eze',
-      customerPhone: '+234 806 777 8899',
-      customerEmail: 'chioma@example.com',
-      shippingAddress: '8 Ikot Ekpene, Uyo',
-      items: const [],
-      subtotal: 229.98,
-      status: OrderStatus.pending,
-      paymentStatus: PaymentStatus.pending,
-      paymentMethod: PaymentMethod.cashOnDelivery,
-      createdAt: DateTime.now().subtract(const Duration(hours: 8)),
-    ),
-    Order(
-      id: 'o4',
-      orderNumber: 'QT-2026-1044',
-      customerId: 'c4',
-      customerName: 'Tina Adeyemi',
-      customerPhone: '+234 805 444 3333',
-      customerEmail: 'tina@example.com',
-      shippingAddress: '22 Lekki Phase 1, Lagos',
-      items: const [],
-      subtotal: 64.99,
-      status: OrderStatus.ready,
-      paymentStatus: PaymentStatus.successful,
-      paymentMethod: PaymentMethod.bankTransfer,
-      createdAt: DateTime.now().subtract(const Duration(days: 1)),
-    ),
-  ];
 }
 
 class _OrderCard extends StatelessWidget {
-  const _OrderCard({required this.order, required this.onUpdateStatus});
+  const _OrderCard({required this.order, required this.onStatusUpdated});
 
   final Order order;
-  final ValueChanged<OrderStatus> onUpdateStatus;
+  final VoidCallback onStatusUpdated;
 
   @override
   Widget build(BuildContext context) {
@@ -202,15 +170,15 @@ class _OrderCard extends StatelessWidget {
           ),
         ),
         title: Text(
-          '${order.orderNumber} · ${order.customerName}',
+          '${order.orderNumber} \u00b7 ${order.customerName}',
           style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('${order.items.length} items · ${formatKsh(order.total)}'),
+            Text('${order.items.length} items \u00b7 ${formatKsh(order.total)}'),
             Text(
-              '${order.status.label} · ${order.paymentStatus.label}',
+              '${order.status.label} \u00b7 ${order.paymentStatus.label}',
               style: TextStyle(
                 color: _statusColor(order.status),
                 fontWeight: FontWeight.w600,
@@ -225,8 +193,20 @@ class _OrderCard extends StatelessWidget {
           Text('Customer: ${order.customerName} (${order.customerEmail})'),
           Text('Phone: ${order.customerPhone}'),
           Text('Address: ${order.shippingAddress}'),
-          Text('Payment: ${order.paymentMethod.label}'),
           const Divider(height: 20),
+          if (order.items.isNotEmpty) ...[
+            const Text('Items:', style: TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 4),
+            for (final item in order.items)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text(
+                  '  ${item.productName}${item.variantLabel != null ? ' (${item.variantLabel})' : ''} x${item.quantity} \u2014 ${formatKsh(item.lineTotal)}',
+                  style: const TextStyle(fontSize: 13),
+                ),
+              ),
+            const Divider(height: 20),
+          ],
           if (canUpdate)
             Wrap(
               spacing: 8,
@@ -242,9 +222,16 @@ class _OrderCard extends StatelessWidget {
                           message: 'Mark ${order.orderNumber} as ${status.label}?',
                         );
                         if (ok) {
-                          onUpdateStatus(status);
-                          if (!context.mounted) return;
-                          showSuccessSnack(context, 'Order marked as ${status.label}');
+                          try {
+                            final repo = context.read<OrderRepository>();
+                            await repo.updateOrderStatus(order.id, status.name);
+                            if (!context.mounted) return;
+                            showSuccessSnack(context, 'Order marked as ${status.label}');
+                            onStatusUpdated();
+                          } catch (e) {
+                            if (!context.mounted) return;
+                            showErrorSnack(context, 'Failed to update status: $e');
+                          }
                         }
                       },
                     ),

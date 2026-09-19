@@ -118,7 +118,7 @@ export function createApp(
   app.use('/api/installments', installmentRouter(installmentService));
 
   const paymentRepo = new PaymentRepository(pool);
-  const orderService = new OrderService(orderRepo, installmentRepo, paymentRepo);
+  const orderService = new OrderService(orderRepo, installmentRepo, paymentRepo, notificationRepo);
   app.use('/api/orders', orderRouter(orderService));
 
   const paymentService = new PaymentService(paymentRepo, orderRepo, installmentRepo, notificationRepo, auditRepo);

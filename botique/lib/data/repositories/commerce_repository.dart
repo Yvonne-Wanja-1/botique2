@@ -78,6 +78,7 @@ abstract class OrderRepository {
   Future<List<Installment>> getInstallments({String? customerId});
   Future<Installment> approveInstallment(String id);
   Future<Installment> rejectInstallment(String id, {required String reason});
+  Future<Order> updateOrderStatus(String orderId, String status);
 }
 
 abstract class PromotionRepository {
