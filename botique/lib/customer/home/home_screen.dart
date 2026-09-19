@@ -163,25 +163,27 @@ class _CampaignHero extends StatelessWidget {
                       ),
                     ),
                     Positioned(
+                      left: 20,
                       right: 20,
                       bottom: 24,
-                      child: Column(
+                      child: Row(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          StaggerReveal(
-                            index: 0,
-                            child: Text(
-                              'Elegance is in\nher every step',
-                              textAlign: TextAlign.end,
-                              style: QueensTouchTheme.brandSerif(
-                                fontSize: 34,
-                                weight: FontWeight.w600,
-                                color: Colors.white,
-                                height: 1.15,
+                          Expanded(
+                            child: StaggerReveal(
+                              index: 0,
+                              child: Text(
+                                'Elegance is in\nher every step',
+                                style: QueensTouchTheme.brandSerif(
+                                  fontSize: 34,
+                                  weight: FontWeight.w600,
+                                  color: Colors.white,
+                                  height: 1.15,
+                                ),
                               ),
                             ),
                           ),
-                          const SizedBox(height: 18),
+                          const SizedBox(width: 12),
                           StaggerReveal(
                             index: 1,
                             child: ElevatedButton(

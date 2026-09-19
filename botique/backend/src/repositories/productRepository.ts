@@ -262,12 +262,20 @@ export class ProductRepository {
           JSON.stringify(input.specifications),
         ],
       );
-      for (const v of input.variants) {
+      if (input.variants.length === 0) {
         await client.query(
           `INSERT INTO product_variants (id, product_id, sku, size, color, shade, price, stock_qty)
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-          [randomUUID(), productId, v.sku, v.size ?? null, v.color ?? null, v.shade ?? null, v.price ?? null, v.stockQty],
+          [randomUUID(), productId, `${input.slug}-default`, 'Default', null, null, null, 1],
         );
+      } else {
+        for (const v of input.variants) {
+          await client.query(
+            `INSERT INTO product_variants (id, product_id, sku, size, color, shade, price, stock_qty)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+            [randomUUID(), productId, v.sku, v.size ?? null, v.color ?? null, v.shade ?? null, v.price ?? null, v.stockQty],
+          );
+        }
       }
       await client.query('COMMIT');
       const created = await this.findById(productId);

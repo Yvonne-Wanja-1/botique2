@@ -59,6 +59,22 @@ describe('products API', () => {
     expect(res.body.data.variants[0].stockQty).toBe(4);
   });
 
+  it('creates a product without variants and gets default variant with stock 1', async () => {
+    const res = await request(app)
+      .post('/api/products')
+      .set('x-user-id', '00000000-0000-0000-0000-000000000203')
+      .set('x-user-role', 'store_manager')
+      .send({
+        name: 'No Variant Product', slug: 'no-variant-product', description: 'd',
+        categoryId: '00000000-0000-0000-0000-000000000402',
+        brandId: '00000000-0000-0000-0000-000000000301',
+        basePrice: 30, stockThreshold: 5,
+      });
+    expect(res.status).toBe(201);
+    expect(res.body.data.variants.length).toBe(1);
+    expect(res.body.data.variants[0].stockQty).toBe(1);
+  });
+
   it('returns the category slug on product payloads', async () => {
     const res = await request(app)
       .get('/api/products/00000000-0000-0000-0000-000000000501')
