@@ -2,4 +2,7 @@
 /// `backend/src/repositories/orderRepository.ts` (DELIVERY_FEE).
 const double kDeliveryFee = 200;
 
-double shippingFor(double subtotal) => kDeliveryFee;
+enum DeliveryMethod { pickup, delivery }
+
+double shippingFor(double subtotal, {DeliveryMethod method = DeliveryMethod.delivery}) =>
+    method == DeliveryMethod.delivery ? kDeliveryFee : 0;

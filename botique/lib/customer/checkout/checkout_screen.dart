@@ -16,7 +16,9 @@ const String kPaybillNumber = '222111';
 const String kPaybillAccount = '65727';
 
 class CheckoutScreen extends StatefulWidget {
-  const CheckoutScreen({super.key});
+  const CheckoutScreen({super.key, this.deliveryMethod = DeliveryMethod.delivery});
+
+  final DeliveryMethod deliveryMethod;
 
   @override
   State<CheckoutScreen> createState() => _CheckoutScreenState();
@@ -117,7 +119,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   @override
   Widget build(BuildContext context) {
     final cart = context.read<CartService>();
-    final shipping = shippingFor(_subtotal);
+    final shipping = shippingFor(_subtotal, method: widget.deliveryMethod);
     final discountedSubtotal = (_subtotal - _discount).clamp(0, _subtotal);
     final total = discountedSubtotal + shipping;
 
@@ -161,8 +163,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             TextFormField(
               controller: _addressController,
               decoration: const InputDecoration(labelText: 'Delivery address'),
-              validator: (v) =>
-                  v == null || v.trim().isEmpty ? 'Required' : null,
+              validator: widget.deliveryMethod == DeliveryMethod.delivery
+                  ? (v) => v == null || v.trim().isEmpty ? 'Required' : null
+                  : null,
             ),
             const SizedBox(height: 24),
             Text(
@@ -263,8 +266,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     if (_discount > 0)
                       _Row('Discount (${_promoCode ?? ""})', '-${formatKsh(_discount)}', isDiscount: true),
                     _Row(
-                      'Delivery Fee',
-                      formatKsh(shipping),
+                      widget.deliveryMethod == DeliveryMethod.delivery ? 'Delivery Fee' : 'Pickup',
+                      widget.deliveryMethod == DeliveryMethod.pickup ? 'Free' : formatKsh(shipping),
                     ),
                     const Divider(height: 16),
                     _Row('Total', formatKsh(total), isTotal: true),
@@ -405,6 +408,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       confirmationMessage: _confirmationController.text.trim().isEmpty
           ? null
           : _confirmationController.text.trim(),
+      deliveryMethod: widget.deliveryMethod == DeliveryMethod.delivery ? 'delivery' : 'pickup',
     );
 
     final repo = context.read<OrderRepository>();

@@ -19,6 +19,7 @@ class ApiOrderRepository implements OrderRepository {
       'installmentRequested': payload.installmentRequested,
       if (payload.confirmationMessage != null)
         'confirmationMessage': payload.confirmationMessage,
+      'deliveryMethod': payload.deliveryMethod,
       'items': [
         for (final item in payload.items)
           {

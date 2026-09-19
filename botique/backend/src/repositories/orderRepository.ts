@@ -21,6 +21,7 @@ export interface CheckoutInput {
   paymentMethod: PaymentMethod;
   installmentRequested: boolean;
   confirmationMessage?: string | null;
+  deliveryMethod?: string;
 }
 
 export interface PaymentSummary {
@@ -204,7 +205,10 @@ export class OrderRepository {
         if (discountAmount > subtotal) discountAmount = subtotal;
       }
 
-      const shippingFee = DELIVERY_FEE;
+      const shippingAddress = input.deliveryMethod === 'pickup' && !input.shippingAddress.trim()
+        ? 'Pickup'
+        : input.shippingAddress;
+      const shippingFee = input.deliveryMethod === 'pickup' ? 0 : DELIVERY_FEE;
       const total = subtotal - discountAmount + shippingFee;
       const orderId = randomUUID();
       const orderNumber = makeOrderNumber();
@@ -216,7 +220,7 @@ export class OrderRepository {
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'pending','pending',$12,$13,$14)`,
         [
           orderId, orderNumber, customerId, input.customerName, input.customerPhone, input.customerEmail,
-          input.shippingAddress, subtotal, discountAmount, shippingFee, total,
+          shippingAddress, subtotal, discountAmount, shippingFee, total,
           input.paymentMethod, input.installmentRequested, promoCode,
         ],
       );

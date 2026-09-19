@@ -192,14 +192,21 @@ class _QtyButton extends StatelessWidget {
   }
 }
 
-class _CartSummary extends StatelessWidget {
+class _CartSummary extends StatefulWidget {
   const _CartSummary({required this.cart});
 
   final CartService cart;
 
   @override
+  State<_CartSummary> createState() => _CartSummaryState();
+}
+
+class _CartSummaryState extends State<_CartSummary> {
+  DeliveryMethod _deliveryMethod = DeliveryMethod.delivery;
+
+  @override
   Widget build(BuildContext context) {
-    final shipping = shippingFor(cart.subtotal);
+    final shipping = shippingFor(widget.cart.subtotal, method: _deliveryMethod);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: const BoxDecoration(
@@ -213,18 +220,48 @@ class _CartSummary extends StatelessWidget {
             _SummaryRow(
               label: 'Subtotal',
               value: AnimatedCounter(
-                value: cart.subtotal,
+                value: widget.cart.subtotal,
                 format: formatKsh,
                 style: const TextStyle(fontWeight: FontWeight.w600),
               ),
             ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Text('Fulfillment', style: TextStyle(fontWeight: FontWeight.w500, fontSize: 14)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: SegmentedButton<DeliveryMethod>(
+                    segments: const [
+                      ButtonSegment(
+                        value: DeliveryMethod.pickup,
+                        label: Text('Pickup', style: TextStyle(fontSize: 12)),
+                        icon: Icon(Icons.store_outlined, size: 16),
+                      ),
+                      ButtonSegment(
+                        value: DeliveryMethod.delivery,
+                        label: Text('Delivery', style: TextStyle(fontSize: 12)),
+                        icon: Icon(Icons.local_shipping_outlined, size: 16),
+                      ),
+                    ],
+                    selected: {_deliveryMethod},
+                    onSelectionChanged: (v) => setState(() => _deliveryMethod = v.first),
+                    style: ButtonStyle(
+                      visualDensity: VisualDensity.compact,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                ),
+              ],
+            ),
             _SummaryRow(
-              label: 'Delivery Fee',
+              label: _deliveryMethod == DeliveryMethod.delivery ? 'Delivery Fee' : 'Delivery Fee',
               value: Text(
-                formatKsh(shipping),
-                style: const TextStyle(
+                _deliveryMethod == DeliveryMethod.pickup ? 'Free' : formatKsh(shipping),
+                style: TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 14,
+                  color: _deliveryMethod == DeliveryMethod.pickup ? QueensTouchColors.success : null,
                 ),
               ),
             ),
@@ -233,7 +270,7 @@ class _CartSummary extends StatelessWidget {
               label: 'Total',
               isTotal: true,
               value: AnimatedCounter(
-                value: cart.subtotal + shipping,
+                value: widget.cart.subtotal + shipping,
                 format: formatKsh,
                 style: TextStyle(
                   fontWeight: FontWeight.w700,
@@ -248,7 +285,9 @@ class _CartSummary extends StatelessWidget {
               child: ElevatedButton(
                 onPressed: () {
                   Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const CheckoutScreen()),
+                    MaterialPageRoute(
+                      builder: (_) => CheckoutScreen(deliveryMethod: _deliveryMethod),
+                    ),
                   );
                 },
                 child: const Text('Proceed to Checkout'),
