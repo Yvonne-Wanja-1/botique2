@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
@@ -608,10 +609,11 @@ class _ExistingImageTile extends StatelessWidget {
             color: QueensTouchColors.blushLight,
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Image.network(
-            resolveImageUrl(image.url),
+          child: CachedNetworkImage(
+            imageUrl: resolveImageUrl(image.url),
             fit: BoxFit.cover,
-            errorBuilder: (_, _, _) =>
+            memCacheWidth: 176,
+            errorWidget: (_, _, _) =>
                 const Icon(Icons.broken_image, color: QueensTouchColors.plumLight),
           ),
         ),

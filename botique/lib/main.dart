@@ -5,18 +5,25 @@ import 'core/theme/theme.dart';
 import 'core/router/app_router.dart';
 import 'data/api/api_bootstrap.dart';
 import 'data/api/api_client.dart';
-import 'data/mock/mock_catalog_repositories.dart';
-import 'data/mock/mock_commerce_repositories.dart';
-import 'data/mock/mock_report_repository.dart';
-import 'data/mock/mock_review_repository.dart';
 import 'data/repositories/api/api_notification_repository.dart';
+import 'data/repositories/api/api_product_repository.dart';
+import 'data/repositories/api/api_category_repository.dart';
+import 'data/repositories/api/api_brand_repository.dart';
+import 'data/repositories/api/api_cart_repository.dart';
+import 'data/repositories/api/api_wishlist_repository.dart';
+import 'data/repositories/api/api_order_repository.dart';
+import 'data/repositories/api/api_promotion_repository.dart';
 import 'data/repositories/api/api_report_repository.dart';
 import 'data/repositories/api/api_review_repository.dart';
+import 'data/repositories/api/api_user_repository.dart';
+import 'data/repositories/api/api_inventory_repository.dart';
 import 'data/repositories/catalog_repository.dart';
 import 'data/repositories/commerce_repository.dart';
 import 'data/repositories/notification_repository.dart';
 import 'data/repositories/report_repository.dart';
 import 'data/repositories/review_repository.dart';
+import 'data/repositories/user_repository.dart';
+import 'data/repositories/inventory_repository.dart';
 import 'services/admin_catalog_service.dart';
 import 'services/auth_service.dart';
 import 'services/catalog_service.dart';
@@ -26,14 +33,13 @@ import 'services/notification_service.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(QueensTouchApp(useApi: kUseApi, apiClient: kUseApi ? createApiClient() : null));
+  runApp(QueensTouchApp(apiClient: createApiClient()));
 }
 
 class QueensTouchApp extends StatefulWidget {
-  const QueensTouchApp({super.key, this.useApi = false, this.apiClient});
+  const QueensTouchApp({super.key, required this.apiClient});
 
-  final bool useApi;
-  final ApiClient? apiClient;
+  final ApiClient apiClient;
 
   @override
   State<QueensTouchApp> createState() => _QueensTouchAppState();
@@ -50,29 +56,24 @@ class _QueensTouchAppState extends State<QueensTouchApp> {
   late final ReviewRepository _reviewRepo;
   late final ReportRepository _reportRepo;
   late final PromotionRepository _promotionRepo;
+  late final UserRepository _userRepo;
+  late final InventoryRepository _inventoryRepo;
 
   @override
   void initState() {
     super.initState();
-    final api = widget.useApi && widget.apiClient != null
-        ? buildApiRepositories(widget.apiClient!)
-        : null;
-    _productRepo = api?.product ?? MockProductRepository();
-    _categoryRepo = api?.category ?? MockCategoryRepository();
-    _brandRepo = api?.brand ?? MockBrandRepository();
-    _cartRepo = api?.cart ?? MockCartRepository();
-    _wishlistRepo = api?.wishlist ?? MockWishlistRepository();
-    _orderRepo = api?.order ?? MockOrderRepository();
-    _notificationRepo = widget.apiClient != null
-        ? ApiNotificationRepository(widget.apiClient!)
-        : MockNotificationRepository();
-    _reviewRepo = widget.apiClient != null
-        ? ApiReviewRepository(widget.apiClient!)
-        : MockReviewRepository();
-    _reportRepo = widget.apiClient != null
-        ? ApiReportRepository(widget.apiClient!)
-        : MockReportRepository();
-    _promotionRepo = api?.promotion ?? MockPromotionRepository();
+    _productRepo = ApiProductRepository(widget.apiClient);
+    _categoryRepo = ApiCategoryRepository(widget.apiClient);
+    _brandRepo = ApiBrandRepository(widget.apiClient);
+    _cartRepo = ApiCartRepository(widget.apiClient);
+    _wishlistRepo = ApiWishlistRepository(widget.apiClient);
+    _orderRepo = ApiOrderRepository(widget.apiClient);
+    _notificationRepo = ApiNotificationRepository(widget.apiClient);
+    _reviewRepo = ApiReviewRepository(widget.apiClient);
+    _reportRepo = ApiReportRepository(widget.apiClient);
+    _promotionRepo = ApiPromotionRepository(widget.apiClient);
+    _userRepo = ApiUserRepository(widget.apiClient);
+    _inventoryRepo = ApiInventoryRepository(widget.apiClient);
   }
 
   @override
@@ -102,6 +103,8 @@ class _QueensTouchAppState extends State<QueensTouchApp> {
         Provider<ReviewRepository>(create: (_) => _reviewRepo),
         Provider<ReportRepository>(create: (_) => _reportRepo),
         Provider<PromotionRepository>(create: (_) => _promotionRepo),
+        Provider<UserRepository>(create: (_) => _userRepo),
+        Provider<InventoryRepository>(create: (_) => _inventoryRepo),
         ChangeNotifierProvider(
           create: (_) => NotificationService(repo: _notificationRepo)..load(),
         ),

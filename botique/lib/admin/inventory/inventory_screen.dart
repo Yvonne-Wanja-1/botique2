@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../core/theme/theme.dart';
 import '../../core/widgets/dialogs.dart';
-import '../../data/mock/mock_catalog_data.dart';
+import '../../data/repositories/inventory_repository.dart';
 import '../../models/audit.dart';
-import '../../models/product.dart';
 import '../../services/auth_service.dart';
-import 'package:provider/provider.dart';
 
 class InventoryScreen extends StatefulWidget {
   const InventoryScreen({super.key});
@@ -18,16 +17,37 @@ class InventoryScreen extends StatefulWidget {
 class _InventoryScreenState extends State<InventoryScreen> {
   int _tab = 0;
   String _query = '';
+  List<VariantStock> _variants = [];
+  bool _loading = true;
   final List<InventoryTransaction> _history = [];
 
   static const _tabs = ['Stock', 'Low Stock', 'Out of Stock', 'Stock History'];
 
-  List<Product> get _products => MockCatalogData.products.where((p) {
-        final matchesQuery = _query.isEmpty || p.name.toLowerCase().contains(_query.toLowerCase());
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      final repo = context.read<InventoryRepository>();
+      _variants = await repo.list();
+    } catch (_) {
+      _variants = [];
+    }
+    if (mounted) setState(() => _loading = false);
+  }
+
+  List<VariantStock> get _filtered => _variants.where((v) {
+        final matchesQuery = _query.isEmpty ||
+            v.productName.toLowerCase().contains(_query.toLowerCase()) ||
+            v.sku.toLowerCase().contains(_query.toLowerCase());
         return switch (_tab) {
           0 => matchesQuery,
-          1 => p.isLowStock,
-          2 => p.isOutOfStock,
+          1 => v.isLowStock,
+          2 => v.isOutOfStock,
           _ => true,
         };
       }).toList();
@@ -69,31 +89,67 @@ class _InventoryScreenState extends State<InventoryScreen> {
         Expanded(
           child: _tab == 3
               ? _historyView()
-              : ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: _products.length,
-                  itemBuilder: (context, index) => _InventoryRow(
-                    product: _products[index],
-                    staffName: context.read<AuthService>().currentUser?.name ?? 'Staff',
-                    onAdjust: (newQty, reason) {
-                      final prev = _products[index].totalStock;
-                      setState(() {
-                        _history.insert(0, InventoryTransaction(
-                          id: 't${_history.length + 1}',
-                          productId: _products[index].id,
-                          productName: _products[index].name,
-                          type: newQty > prev ? InventoryChangeType.add : InventoryChangeType.reduce,
-                          previousQuantity: prev,
-                          newQuantity: newQty,
-                          reason: reason,
-                          staffName: context.read<AuthService>().currentUser?.name,
-                          createdAt: DateTime.now(),
-                        ));
-                      });
-                      showSuccessSnack(context, 'Stock updated to $newQty');
-                    },
-                  ),
-                ),
+              : _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : RefreshIndicator(
+                      onRefresh: _load,
+                      child: ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        itemCount: _filtered.length,
+                        itemBuilder: (context, index) => _InventoryRow(
+                          variant: _filtered[index],
+                          onAdjust: (newQty, reason) async {
+                            final prev = _filtered[index].stockQty;
+                            final diff = newQty - prev;
+                            if (diff == 0) return;
+                            try {
+                              final repo = context.read<InventoryRepository>();
+                              final changeType = diff > 0 ? 'add' : 'reduce';
+                              final result = await repo.adjust(
+                                _filtered[index].variantId,
+                                quantity: diff,
+                                reason: reason.isEmpty ? 'Manual adjustment' : reason,
+                                changeType: changeType,
+                              );
+                              setState(() {
+                                _variants = _variants.map((v) {
+                                  if (v.variantId == _filtered[index].variantId && result != null) {
+                                    return VariantStock(
+                                      variantId: v.variantId,
+                                      productId: v.productId,
+                                      productName: v.productName,
+                                      sku: v.sku,
+                                      size: v.size,
+                                      color: v.color,
+                                      shade: v.shade,
+                                      stockQty: result.newQuantity,
+                                      stockThreshold: v.stockThreshold,
+                                      isLowStock: result.newQuantity > 0 && result.newQuantity <= v.stockThreshold,
+                                      isOutOfStock: result.newQuantity == 0,
+                                    );
+                                  }
+                                  return v;
+                                }).toList();
+                                _history.insert(0, InventoryTransaction(
+                                  id: 't${_history.length + 1}',
+                                  productId: _filtered[index].productId,
+                                  productName: _filtered[index].productName,
+                                  type: diff > 0 ? InventoryChangeType.add : InventoryChangeType.reduce,
+                                  previousQuantity: prev,
+                                  newQuantity: result?.newQuantity ?? newQty,
+                                  reason: reason.isEmpty ? 'Manual adjustment' : reason,
+                                  staffName: context.read<AuthService>().currentUser?.name,
+                                  createdAt: DateTime.now(),
+                                ));
+                              });
+                              if (context.mounted) showSuccessSnack(context, 'Stock updated');
+                            } catch (e) {
+                              if (context.mounted) showSuccessSnack(context, 'Failed to update stock');
+                            }
+                          },
+                        ),
+                      ),
+                    ),
         ),
       ],
     );
@@ -138,17 +194,20 @@ class _InventoryScreenState extends State<InventoryScreen> {
 
 class _InventoryRow extends StatelessWidget {
   const _InventoryRow({
-    required this.product,
+    required this.variant,
     required this.onAdjust,
-    required this.staffName,
   });
 
-  final Product product;
+  final VariantStock variant;
   final void Function(int newQty, String reason) onAdjust;
-  final String staffName;
 
   @override
   Widget build(BuildContext context) {
+    final stockColor = variant.isOutOfStock
+        ? QueensTouchColors.danger
+        : variant.isLowStock
+            ? QueensTouchColors.warning
+            : QueensTouchColors.textMuted;
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
@@ -169,10 +228,14 @@ class _InventoryRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(product.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                  Text(variant.productName, style: const TextStyle(fontWeight: FontWeight.w600)),
                   Text(
-                    'In stock: ${product.totalStock} · Threshold: ${product.stockThreshold}',
-                    style: TextStyle(fontSize: 12, color: product.isLowStock ? QueensTouchColors.warning : QueensTouchColors.textMuted),
+                    variant.label,
+                    style: TextStyle(fontSize: 12, color: QueensTouchColors.textMuted),
+                  ),
+                  Text(
+                    'In stock: ${variant.stockQty} · Threshold: ${variant.stockThreshold}',
+                    style: TextStyle(fontSize: 12, color: stockColor),
                   ),
                 ],
               ),
@@ -188,7 +251,7 @@ class _InventoryRow extends StatelessWidget {
   }
 
   void _showAdjustDialog(BuildContext context) {
-    final controller = TextEditingController(text: '${product.totalStock}');
+    final controller = TextEditingController(text: '${variant.stockQty}');
     final reasonController = TextEditingController();
     showDialog(
       context: context,
@@ -197,7 +260,9 @@ class _InventoryRow extends StatelessWidget {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(product.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+            Text(variant.productName, style: const TextStyle(fontWeight: FontWeight.w600)),
+            if (variant.label.isNotEmpty)
+              Text(variant.label, style: TextStyle(fontSize: 12, color: QueensTouchColors.textMuted)),
             const SizedBox(height: 12),
             TextField(
               controller: controller,
@@ -218,7 +283,7 @@ class _InventoryRow extends StatelessWidget {
               final qty = int.tryParse(controller.text);
               if (qty == null || qty < 0) return;
               Navigator.pop(context);
-              onAdjust(qty, reasonController.text.isEmpty ? 'Manual adjustment' : reasonController.text);
+              onAdjust(qty, reasonController.text);
             },
             child: const Text('Save'),
           ),

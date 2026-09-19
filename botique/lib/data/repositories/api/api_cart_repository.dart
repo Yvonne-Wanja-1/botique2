@@ -29,7 +29,6 @@ class ApiCartRepository implements CartRepository {
       if (item.variant != null) 'variantId': item.variant!.id,
       'quantity': item.quantity,
     });
-    await getItems();
   }
 
   @override
@@ -37,7 +36,6 @@ class ApiCartRepository implements CartRepository {
     final backendId = await _backendId(productId, variantId);
     if (backendId == null) return;
     await _client.delete('/api/cart/items/$backendId');
-    await getItems();
   }
 
   @override
@@ -45,7 +43,6 @@ class ApiCartRepository implements CartRepository {
     final backendId = await _backendId(productId, variantId);
     if (backendId == null) return;
     await _client.patch('/api/cart/items/$backendId', body: {'quantity': quantity});
-    await getItems();
   }
 
   @override

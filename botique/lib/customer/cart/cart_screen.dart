@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -68,14 +70,47 @@ class CartScreen extends StatelessWidget {
   }
 }
 
-class _CartItemTile extends StatelessWidget {
+class _CartItemTile extends StatefulWidget {
   const _CartItemTile({required this.item});
 
   final CartItem item;
 
   @override
+  State<_CartItemTile> createState() => _CartItemTileState();
+}
+
+class _CartItemTileState extends State<_CartItemTile> {
+  Timer? _debounce;
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  void _updateQuantity(CartService cart, int newQty) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 400), () async {
+      try {
+        await cart.updateQuantity(
+          widget.item.product.id,
+          newQty,
+          variantId: widget.item.variant?.id,
+        );
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(e.toString())),
+          );
+        }
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final cart = context.read<CartService>();
+    final item = widget.item;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -129,21 +164,7 @@ class _CartItemTile extends StatelessWidget {
                       _QtyButton(
                         icon: Icons.remove,
                         enabled: item.quantity > 1,
-                        onTap: () async {
-                          try {
-                            await cart.updateQuantity(
-                              item.product.id,
-                              item.quantity - 1,
-                              variantId: item.variant?.id,
-                            );
-                          } catch (e) {
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text(e.toString())),
-                              );
-                            }
-                          }
-                        },
+                        onTap: () => _updateQuantity(cart, item.quantity - 1),
                       ),
                       const SizedBox(width: 12),
                       Text(
@@ -153,21 +174,7 @@ class _CartItemTile extends StatelessWidget {
                       const SizedBox(width: 12),
                       _QtyButton(
                         icon: Icons.add,
-                        onTap: () async {
-                          try {
-                            await cart.updateQuantity(
-                              item.product.id,
-                              item.quantity + 1,
-                              variantId: item.variant?.id,
-                            );
-                          } catch (e) {
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text(e.toString())),
-                              );
-                            }
-                          }
-                        },
+                        onTap: () => _updateQuantity(cart, item.quantity + 1),
                       ),
                     ],
                   ),
@@ -193,7 +200,7 @@ class _QtyButton extends StatelessWidget {
   const _QtyButton({required this.icon, required this.onTap, this.enabled = true});
 
   final IconData icon;
-  final Future<void> Function()? onTap;
+  final VoidCallback? onTap;
   final bool enabled;
 
   @override

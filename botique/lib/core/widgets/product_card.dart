@@ -179,23 +179,18 @@ class _CardWishlist extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final wishlist = context.watch<WishlistService>();
-    return FutureBuilder<bool>(
-      future: wishlist.contains(productId),
-      builder: (context, snapshot) {
-        final selected = snapshot.data ?? false;
-        return Material(
-          color: Colors.white.withValues(alpha: 0.85),
-          shape: const CircleBorder(),
-          child: Padding(
-            padding: const EdgeInsets.all(4),
-            child: WishlistHeart(
-              isSelected: selected,
-              size: 20,
-              onPressed: () => wishlist.toggle(productId),
-            ),
-          ),
-        );
-      },
+    final selected = wishlist.contains(productId);
+    return Material(
+      color: Colors.white.withValues(alpha: 0.85),
+      shape: const CircleBorder(),
+      child: Padding(
+        padding: const EdgeInsets.all(4),
+        child: WishlistHeart(
+          isSelected: selected,
+          size: 20,
+          onPressed: () => wishlist.toggle(productId),
+        ),
+      ),
     );
   }
 }

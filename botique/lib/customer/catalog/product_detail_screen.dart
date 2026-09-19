@@ -240,29 +240,32 @@ class _ProductDetailBody extends StatelessWidget {
             _QuantityStepper(value: quantity, onChanged: onQuantityChanged),
           ],
         ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Text('Total', style: Theme.of(context).textTheme.titleSmall),
+            const Spacer(),
+            Text(
+              formatKsh(product.effectivePrice * quantity),
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: QueensTouchColors.plum,
+              ),
+            ),
+          ],
+        ),
         const SizedBox(height: 20),
         Row(
           children: [
             Expanded(
               flex: 3,
               child: AddToCartButton(
-                enabled: !product.isOutOfStock,
-                label: product.isOutOfStock ? 'Out of Stock' : 'Add to Cart',
                 onPressed: () async {
-                  if (product.isOutOfStock) return;
-                  final variant = _selectedVariant(product);
-                  if (variant == null && product.variants.isNotEmpty) {
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Please select a variant first')),
-                      );
-                    }
-                    return;
-                  }
                   try {
                     await cart.addProduct(
                       product,
-                      variant: variant,
+                      variant: _selectedVariant(product),
                       quantity: quantity,
                     );
                     if (context.mounted) {
@@ -295,17 +298,11 @@ class _ProductDetailBody extends StatelessWidget {
                 style: OutlinedButton.styleFrom(
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-                child: FutureBuilder<bool>(
-                  future: wishlist.contains(product.id),
-                  builder: (context, snapshot) {
-                    final inWishlist = snapshot.data ?? false;
-                    return WishlistHeart(
-                      isSelected: inWishlist,
+                child: WishlistHeart(
+                      isSelected: wishlist.contains(product.id),
                       size: 22,
                       onPressed: () => wishlist.toggle(product.id),
-                    );
-                  },
-                ),
+                    ),
               ),
             ),
           ],

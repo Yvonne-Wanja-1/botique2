@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -157,7 +158,7 @@ class _UserMenu extends StatelessWidget {
       icon: CircleAvatar(
         radius: 16,
         backgroundColor: QueensTouchColors.plum,
-        backgroundImage: hasAvatar ? NetworkImage(resolveImageUrl(avatarUrl)) : null,
+        backgroundImage: hasAvatar ? CachedNetworkImageProvider(resolveImageUrl(avatarUrl)) : null,
         child: hasAvatar
             ? null
             : Text(

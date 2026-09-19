@@ -8,53 +8,6 @@ import '../data/api/api_exception.dart';
 import '../models/product.dart';
 import '../models/user.dart';
 
-class DemoAccounts {
-  DemoAccounts._();
-
-  static final List<User> accounts = [
-    User(
-      id: 'u-customer',
-      name: 'Amara Okafor',
-      email: 'amara@example.com',
-      phone: '+234 801 234 5678',
-      role: Role.customer,
-      createdAt: DateTime(2026, 3, 15),
-    ),
-    User(
-      id: 'u-admin',
-      name: 'Queen Ebele',
-      email: 'admin@queenstouch.com',
-      phone: '+234 802 000 0001',
-      role: Role.superAdmin,
-      createdAt: DateTime(2026, 1, 1),
-    ),
-    User(
-      id: 'u-manager',
-      name: 'Sarah Mensah',
-      email: 'manager@queenstouch.com',
-      phone: '+234 802 000 0002',
-      role: Role.storeManager,
-      createdAt: DateTime(2026, 1, 5),
-    ),
-    User(
-      id: 'u-sales',
-      name: 'Doris Achebe',
-      email: 'sales@queenstouch.com',
-      phone: '+234 802 000 0003',
-      role: Role.salesStaff,
-      createdAt: DateTime(2026, 1, 8),
-    ),
-    User(
-      id: 'u-inventory',
-      name: 'Chidi Nwosu',
-      email: 'inventory@queenstouch.com',
-      phone: '+234 802 000 0004',
-      role: Role.inventoryStaff,
-      createdAt: DateTime(2026, 1, 10),
-    ),
-  ];
-}
-
 enum AuthStatus { checking, unauthenticated, authenticated }
 
 /// Persists the session. [SecureTokenStorage] uses the platform keychain/
@@ -126,13 +79,13 @@ String friendlyAuthError(ApiException e) {
 }
 
 class AuthService extends ChangeNotifier {
-  AuthService({ApiClient? apiClient, TokenStorage? storage})
+  AuthService({required ApiClient apiClient, TokenStorage? storage})
       : _api = apiClient,
         _storage = storage ?? SecureTokenStorage() {
-    _api?.onUnauthorized = handleUnauthorized;
+    _api.onUnauthorized = handleUnauthorized;
   }
 
-  final ApiClient? _api;
+  final ApiClient _api;
   final TokenStorage _storage;
 
   User? _currentUser;
@@ -148,18 +101,12 @@ class AuthService extends ChangeNotifier {
 
   Role get role => _currentUser?.role ?? Role.customer;
 
-  bool get usesRemoteApi => _api != null;
+  bool get usesRemoteApi => true;
 
   /// Restores a persisted session on startup.
   Future<void> restoreSession() async {
     _status = AuthStatus.checking;
     notifyListeners();
-    if (_api == null) {
-      _currentUser = null;
-      _status = AuthStatus.unauthenticated;
-      notifyListeners();
-      return;
-    }
     try {
       final token = await _storage.readToken();
       final userJson = await _storage.readUserJson();
@@ -184,10 +131,7 @@ class AuthService extends ChangeNotifier {
   }
 
   Future<void> _validateSession() async {
-    if (_api == null) return;
     // Temporarily suppress the 401 handler during startup validation.
-    // Real 401s during normal API usage should still clear the session via
-    // ApiClient.onUnauthorized → handleUnauthorized().
     final previousHandler = _api.onUnauthorized;
     _api.onUnauthorized = null;
     try {
@@ -210,22 +154,6 @@ class AuthService extends ChangeNotifier {
   }
 
   Future<void> login({required String email, required String password}) async {
-    if (_api == null) {
-      // Demo build: authenticate against the seeded demo accounts so the
-      // real login form stays functional without a backend.
-      final match = DemoAccounts.accounts
-          .where((u) => u.email.toLowerCase() == email.trim().toLowerCase())
-          .toList();
-      if (match.isEmpty) {
-        throw const ApiException(
-          statusCode: 401,
-          code: 'UNAUTHORIZED',
-          message: 'Unknown demo account. Use one of the demo emails shown below.',
-        );
-      }
-      await loginAs(match.first);
-      return;
-    }
     final data = await _api.post('/api/auth/login', body: {'email': email, 'password': password});
     await _applyAuthPayload(data);
   }
@@ -236,21 +164,6 @@ class AuthService extends ChangeNotifier {
     required String phone,
     required String password,
   }) async {
-    if (_api == null) {
-      // Demo build: create a local customer so the register screen works
-      // without a backend.
-      _currentUser = User(
-        id: 'u-demo-${DateTime.now().millisecondsSinceEpoch}',
-        name: fullName.trim(),
-        email: email.trim(),
-        phone: phone.trim(),
-        role: Role.customer,
-        createdAt: DateTime.now(),
-      );
-      _status = AuthStatus.authenticated;
-      notifyListeners();
-      return;
-    }
     final data = await _api.post('/api/auth/register', body: {
       'fullName': fullName,
       'email': email,
@@ -264,7 +177,7 @@ class AuthService extends ChangeNotifier {
     final map = data as Map<String, dynamic>;
     final token = map['token'] as String;
     final user = User.fromJson(map['user'] as Map<String, dynamic>);
-    _api!.setToken(token);
+    _api.setToken(token);
     await _storage.writeToken(token);
     await _storage.writeUserJson(jsonEncode(user.toJson()));
     _currentUser = user;
@@ -274,7 +187,7 @@ class AuthService extends ChangeNotifier {
 
   Future<void> logout() async {
     try {
-      await _api?.post('/api/auth/logout');
+      await _api.post('/api/auth/logout');
     } catch (_) {
       // Best-effort: the session is discarded locally regardless.
     }
@@ -286,44 +199,21 @@ class AuthService extends ChangeNotifier {
   Future<void> handleUnauthorized() => _clearSession();
 
   Future<void> _clearSession() async {
-    _api?.clearToken();
+    _api.clearToken();
     await _storage.clear();
     _currentUser = null;
     _status = AuthStatus.unauthenticated;
     notifyListeners();
   }
 
-  /// Demo quick-login for mock builds (no backend). In API mode demo tiles only
-  /// pre-fill the login form and must still authenticate against the backend.
-  Future<void> loginAs(User user) async {
-    if (_api != null) return;
-    _currentUser = user;
-    _status = AuthStatus.authenticated;
-    notifyListeners();
-  }
-
-  Future<void> loginAsRole(Role role) async {
-    final account = DemoAccounts.accounts.firstWhere((u) => u.role == role);
-    await loginAs(account);
-  }
-
   Future<void> updateProfile({String? name, String? phone}) async {
     if (_currentUser == null) return;
     _currentUser = _currentUser!.copyWith(name: name, phone: phone);
-    if (_api != null) {
-      await _storage.writeUserJson(jsonEncode(_currentUser!.toJson()));
-    }
+    await _storage.writeUserJson(jsonEncode(_currentUser!.toJson()));
     notifyListeners();
   }
 
   Future<void> changePassword({required String currentPassword, required String newPassword}) async {
-    if (_api == null) {
-      throw const ApiException(
-        statusCode: 0,
-        code: 'MOCK',
-        message: 'Password change is only available with a connected backend.',
-      );
-    }
     await _api.put('/api/auth/password', body: {
       'currentPassword': currentPassword,
       'newPassword': newPassword,
@@ -333,13 +223,6 @@ class AuthService extends ChangeNotifier {
   /// Uploads a new profile picture from the device gallery. Returns the new
   /// avatar URL once persisted by the backend.
   Future<String?> uploadAvatar({required Uint8List bytes, required String filename, required String mimeType}) async {
-    if (_api == null) {
-      throw const ApiException(
-        statusCode: 0,
-        code: 'MOCK',
-        message: 'Profile pictures are only available with a connected backend.',
-      );
-    }
     final data = await _api.postMultipart(
       '/api/auth/avatar',
       images: [UploadImage(bytes: bytes, filename: filename, mimeType: mimeType)],

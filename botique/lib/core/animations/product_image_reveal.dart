@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/theme/theme.dart';
@@ -77,34 +78,23 @@ class _ProductImageRevealState extends State<ProductImageReveal> {
     return Stack(
       fit: StackFit.expand,
       children: [
-        Image.network(
-          resolveImageUrl(url),
+        CachedNetworkImage(
+          imageUrl: resolveImageUrl(url),
           fit: widget.fit,
-          cacheWidth: widget.cacheWidth,
-          gaplessPlayback: true,
-          frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-            if (wasSynchronouslyLoaded) {
-              WidgetsBinding.instance.addPostFrameCallback((_) => _markLoaded());
-              return child;
-            }
-            if (frame == null) {
-              return const _SkeletonSurface();
-            }
+          memCacheWidth: widget.cacheWidth,
+          placeholder: (context, url) => const _SkeletonSurface(),
+          errorWidget: (context, url, error) =>
+              const _PlaceholderSurface(icon: Icons.broken_image),
+          fadeInDuration: const Duration(milliseconds: 200),
+          fadeOutDuration: const Duration(milliseconds: 100),
+          imageBuilder: (context, imageProvider) {
             WidgetsBinding.instance.addPostFrameCallback((_) => _markLoaded());
-            return TweenAnimationBuilder<double>(
-              tween: Tween(begin: 0.0, end: 1.0),
-              duration: QtMotion.normal,
-              curve: QtMotion.signature,
-              builder: (context, v, c) => Opacity(opacity: v, child: c),
-              child: child,
+            return Image(
+              image: imageProvider,
+              fit: widget.fit,
+              gaplessPlayback: true,
             );
           },
-          loadingBuilder: (context, child, event) {
-            if (event == null) return child;
-            return const _SkeletonSurface();
-          },
-          errorBuilder: (context, error, stackTrace) =>
-              const _PlaceholderSurface(icon: Icons.broken_image),
         ),
         if (!QtMotion.reduceMotion(context) && _loaded)
           IgnorePointer(child: _PresentationOverlay(presentation: widget.presentation)),

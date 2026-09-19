@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -169,10 +170,11 @@ class _ProductRow extends StatelessWidget {
           clipBehavior: Clip.antiAlias,
           child: product.images.isEmpty
               ? const Icon(Icons.checkroom, color: QueensTouchColors.plumLight)
-              : Image.network(
-                  resolveImageUrl(product.images.first),
+              : CachedNetworkImage(
+                  imageUrl: resolveImageUrl(product.images.first),
                   fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) =>
+                  memCacheWidth: 96,
+                  errorWidget: (_, _, _) =>
                       const Icon(Icons.checkroom, color: QueensTouchColors.plumLight),
                 ),
         ),

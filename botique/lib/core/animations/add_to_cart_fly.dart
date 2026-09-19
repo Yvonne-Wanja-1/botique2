@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/theme/theme.dart';
@@ -183,10 +184,11 @@ class _FlyOverlayState extends State<_FlyOverlay> with SingleTickerProviderState
                                 color: Colors.white,
                               ),
                             )
-                          : Image.network(
-                              resolveImageUrl(widget.imageUrl),
+                          : CachedNetworkImage(
+                              imageUrl: resolveImageUrl(widget.imageUrl),
                               fit: BoxFit.cover,
-                              errorBuilder: (_, _, _) => Container(
+                              memCacheWidth: 200,
+                              errorWidget: (_, _, _) => Container(
                                 color: QueensTouchColors.plum,
                                 child: const Icon(
                                   Icons.shopping_bag_outlined,

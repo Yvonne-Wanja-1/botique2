@@ -10,7 +10,6 @@ import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/loading_view.dart';
 import '../../data/repositories/commerce_repository.dart';
 import '../../models/order.dart';
-import 'submit_payment_screen.dart';
 
 class OrderDetailScreen extends StatefulWidget {
   const OrderDetailScreen({super.key, required this.orderId});
@@ -61,20 +60,12 @@ class _OrderDetailBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final remaining = order.paymentSummary.remaining;
-    final showPay =
-        remaining > 0 && order.paymentMethod != PaymentMethod.cashOnDelivery;
-
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         _StatusHeaderCard(order: order),
         const SizedBox(height: 16),
         _PaymentSummaryCard(order: order),
-        if (showPay) ...[
-          const SizedBox(height: 16),
-          _PaymentInstructionsCard(order: order, remaining: remaining),
-        ],
         if (order.installmentRequested) ...[
           const SizedBox(height: 16),
           _InstallmentCard(order: order),
@@ -232,106 +223,34 @@ class _SummaryRow extends StatelessWidget {
   }
 }
 
-class _PaymentInstructionsCard extends StatelessWidget {
-  const _PaymentInstructionsCard({
-    required this.order,
-    required this.remaining,
-  });
-
-  final Order order;
-  final double remaining;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Pay via Family Bank Paybill',
-              style: TextStyle(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 12),
-            const _InfoRow(label: 'Paybill', value: '222111'),
-            const SizedBox(height: 6),
-            const _InfoRow(label: 'Account', value: '65727'),
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Total due',
-                  style: TextStyle(color: QueensTouchColors.textMuted),
-                ),
-                Text(
-                  formatKsh(remaining),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => SubmitPaymentScreen(
-                        orderId: order.id,
-                        orderNumber: order.orderNumber,
-                        amount: remaining,
-                      ),
-                    ),
-                  );
-                },
-                child: const Text('Pay'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: const TextStyle(color: QueensTouchColors.textMuted)),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
-      ],
-    );
-  }
-}
-
-class _InstallmentCard extends StatelessWidget {
+class _InstallmentCard extends StatefulWidget {
   const _InstallmentCard({required this.order});
 
   final Order order;
 
   @override
+  State<_InstallmentCard> createState() => _InstallmentCardState();
+}
+
+class _InstallmentCardState extends State<_InstallmentCard> {
+  late final Future<List<Installment>> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = context.read<OrderRepository>().getInstallments();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return FutureBuilder<List<Installment>>(
-      future: context.read<OrderRepository>().getInstallments(),
+      future: _future,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
           return const LoadingView();
         }
         final plans = (snapshot.data ?? const <Installment>[])
-            .where((i) => i.orderId == order.id)
+            .where((i) => i.orderId == widget.order.id)
             .toList();
         final plan = plans.isNotEmpty ? plans.first : null;
         return Card(
@@ -467,15 +386,28 @@ class _ItemsCard extends StatelessWidget {
   }
 }
 
-class _PaymentHistoryCard extends StatelessWidget {
+class _PaymentHistoryCard extends StatefulWidget {
   const _PaymentHistoryCard({required this.order});
 
   final Order order;
 
   @override
+  State<_PaymentHistoryCard> createState() => _PaymentHistoryCardState();
+}
+
+class _PaymentHistoryCardState extends State<_PaymentHistoryCard> {
+  late final Future<List<Payment>> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = context.read<OrderRepository>().getPaymentsForOrder(widget.order.id);
+  }
+
+  @override
   Widget build(BuildContext context) {
     return FutureBuilder<List<Payment>>(
-      future: context.read<OrderRepository>().getPaymentsForOrder(order.id),
+      future: _future,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
           return const LoadingView();

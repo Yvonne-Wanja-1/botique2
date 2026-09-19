@@ -19,22 +19,24 @@ class WishlistService extends ChangeNotifier {
   }
 
   Future<void> toggle(String productId) async {
-    if (await _repository.contains(productId)) {
+    final isCurrentlyInWishlist = _items.any((i) => i.product.id == productId);
+    if (isCurrentlyInWishlist) {
       await _repository.remove(productId);
+      _items.removeWhere((i) => i.product.id == productId);
     } else {
       await _repository.add(productId);
+      _items = await _repository.getItems();
     }
-    _items = await _repository.getItems();
     notifyListeners();
   }
 
-  Future<bool> contains(String productId) async {
-    return _repository.contains(productId);
+  bool contains(String productId) {
+    return _items.any((i) => i.product.id == productId);
   }
 
   Future<void> remove(String productId) async {
     await _repository.remove(productId);
-    _items = await _repository.getItems();
+    _items.removeWhere((i) => i.product.id == productId);
     notifyListeners();
   }
 }

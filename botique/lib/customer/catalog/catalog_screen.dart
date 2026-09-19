@@ -208,8 +208,8 @@ class _FilterSheetState extends State<_FilterSheet> {
     super.initState();
     _draft = widget.current;
     _priceRange = RangeValues(
-      _draft.minPrice ?? 0,
-      _draft.maxPrice ?? 150,
+      _draft.minPrice ?? 10,
+      _draft.maxPrice ?? 4000,
     );
   }
 
@@ -236,9 +236,9 @@ class _FilterSheetState extends State<_FilterSheet> {
                   const Text('Price range', style: TextStyle(fontWeight: FontWeight.w600)),
                   RangeSlider(
                     values: _priceRange,
-                    min: 0,
-                    max: 200,
-                    divisions: 20,
+                    min: 10,
+                    max: 4000,
+                    divisions: 40,
                     labels: RangeLabels(
                       formatKsh(_priceRange.start),
                       formatKsh(_priceRange.end),
@@ -265,7 +265,7 @@ class _FilterSheetState extends State<_FilterSheet> {
                           onPressed: () {
                             setState(() {
                               _draft = const ProductFilter();
-                              _priceRange = const RangeValues(0, 200);
+                              _priceRange = const RangeValues(10, 4000);
                             });
                           },
                           child: const Text('Clear'),
@@ -277,8 +277,8 @@ class _FilterSheetState extends State<_FilterSheet> {
                         child: ElevatedButton(
                           onPressed: () {
                             final f = _draft.copyWith(
-                              minPrice: _priceRange.start == 0 ? null : _priceRange.start,
-                              maxPrice: _priceRange.end >= 200 ? null : _priceRange.end,
+                              minPrice: _priceRange.start <= 10 ? null : _priceRange.start,
+                              maxPrice: _priceRange.end >= 4000 ? null : _priceRange.end,
                             );
                             widget.onApply(f);
                           },
