@@ -128,11 +128,22 @@ class _CartItemTile extends StatelessWidget {
                     children: [
                       _QtyButton(
                         icon: Icons.remove,
-                        onTap: () => cart.updateQuantity(
-                          item.product.id,
-                          item.quantity - 1,
-                          variantId: item.variant?.id,
-                        ),
+                        enabled: item.quantity > 1,
+                        onTap: () async {
+                          try {
+                            await cart.updateQuantity(
+                              item.product.id,
+                              item.quantity - 1,
+                              variantId: item.variant?.id,
+                            );
+                          } catch (e) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text(e.toString())),
+                              );
+                            }
+                          }
+                        },
                       ),
                       const SizedBox(width: 12),
                       Text(
@@ -142,11 +153,21 @@ class _CartItemTile extends StatelessWidget {
                       const SizedBox(width: 12),
                       _QtyButton(
                         icon: Icons.add,
-                        onTap: () => cart.updateQuantity(
-                          item.product.id,
-                          item.quantity + 1,
-                          variantId: item.variant?.id,
-                        ),
+                        onTap: () async {
+                          try {
+                            await cart.updateQuantity(
+                              item.product.id,
+                              item.quantity + 1,
+                              variantId: item.variant?.id,
+                            );
+                          } catch (e) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text(e.toString())),
+                              );
+                            }
+                          }
+                        },
                       ),
                     ],
                   ),
@@ -169,24 +190,35 @@ class _CartItemTile extends StatelessWidget {
 }
 
 class _QtyButton extends StatelessWidget {
-  const _QtyButton({required this.icon, required this.onTap});
+  const _QtyButton({required this.icon, required this.onTap, this.enabled = true});
 
   final IconData icon;
-  final VoidCallback onTap;
+  final Future<void> Function()? onTap;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(6),
-      child: Container(
-        width: 28,
-        height: 28,
-        decoration: BoxDecoration(
-          border: Border.all(color: QueensTouchColors.surfaceBorder),
-          borderRadius: BorderRadius.circular(6),
+    return SizedBox(
+      width: 36,
+      height: 36,
+      child: InkWell(
+        onTap: enabled ? onTap : null,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: enabled
+                  ? QueensTouchColors.surfaceBorder
+                  : QueensTouchColors.surfaceBorder.withValues(alpha: 0.4),
+            ),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(
+            icon,
+            size: 18,
+            color: enabled ? null : QueensTouchColors.textMuted,
+          ),
         ),
-        child: Icon(icon, size: 16),
       ),
     );
   }

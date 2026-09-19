@@ -21,7 +21,7 @@ import '../admin/reports/reports_screen.dart';
 import '../admin/staff/staff_screen.dart';
 import '../admin/audit/audit_screen.dart';
 import '../admin/settings/settings_screen.dart';
-import '../customer/account/account_screen.dart';
+import '../customer/account/account_screen.dart' show NotificationsScreen;
 
 class AdminShell extends StatefulWidget {
   const AdminShell({super.key});

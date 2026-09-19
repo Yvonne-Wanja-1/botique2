@@ -222,6 +222,24 @@ class MockOrderRepository implements OrderRepository {
   Future<List<Installment>> getInstallments({String? customerId}) async {
     return List.of(_installments);
   }
+
+  @override
+  Future<Order> updateOrderStatus(String orderId, String status) async {
+    final idx = _orders.indexWhere((o) => o.id == orderId);
+    final old = _orders[idx];
+    final newStatus = OrderStatus.values.firstWhere((s) => s.name == status, orElse: () => old.status);
+    final updated = Order(
+      id: old.id, orderNumber: old.orderNumber, customerId: old.customerId,
+      customerName: old.customerName, customerPhone: old.customerPhone,
+      customerEmail: old.customerEmail, shippingAddress: old.shippingAddress,
+      items: old.items, subtotal: old.subtotal, discount: old.discount,
+      shippingFee: old.shippingFee, status: newStatus, paymentStatus: old.paymentStatus,
+      paymentMethod: old.paymentMethod, installmentRequested: old.installmentRequested,
+      createdAt: old.createdAt, paymentSummary: old.paymentSummary,
+    );
+    _orders[idx] = updated;
+    return updated;
+  }
 }
 
 class MockNotificationRepository implements NotificationRepository {

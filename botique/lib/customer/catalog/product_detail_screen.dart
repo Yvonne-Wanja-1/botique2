@@ -12,6 +12,7 @@ import '../../core/theme/theme.dart';
 import '../../core/utils/currency.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/loading_view.dart';
+import '../../data/api/api_exception.dart';
 import '../../data/repositories/review_repository.dart';
 import '../../models/product.dart';
 import '../../models/review.dart';
@@ -247,17 +248,42 @@ class _ProductDetailBody extends StatelessWidget {
               child: AddToCartButton(
                 enabled: !product.isOutOfStock,
                 label: product.isOutOfStock ? 'Out of Stock' : 'Add to Cart',
-                onPressed: () {
+                onPressed: () async {
                   if (product.isOutOfStock) return;
-                  cart.addProduct(
-                    product,
-                    variant: _selectedVariant(product),
-                    quantity: quantity,
-                  );
-                  AddToCartFly.show(
-                    context,
-                    imageUrl: product.images.isNotEmpty ? product.images.first : '',
-                  );
+                  final variant = _selectedVariant(product);
+                  if (variant == null && product.variants.isNotEmpty) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Please select a variant first')),
+                      );
+                    }
+                    return;
+                  }
+                  try {
+                    await cart.addProduct(
+                      product,
+                      variant: variant,
+                      quantity: quantity,
+                    );
+                    if (context.mounted) {
+                      AddToCartFly.show(
+                        context,
+                        imageUrl: product.images.isNotEmpty ? product.images.first : '',
+                      );
+                    }
+                  } on ApiException catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(e.message)),
+                      );
+                    }
+                  } catch (_) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Could not add to cart')),
+                      );
+                    }
+                  }
                 },
               ),
             ),
