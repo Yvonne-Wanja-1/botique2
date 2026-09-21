@@ -10,6 +10,8 @@ import { productImageUpdateSchema, productObjectSchema, productSchema } from '..
 import { ValidationError } from '../utils/errors.js';
 import type { ProductService } from '../services/productService.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
+import { processProductImage, isProcessableImage } from '../utils/imageProcessor.js';
+import { writeFile, unlink } from 'node:fs/promises';
 
 export function productRouter(productService: ProductService, options: { uploadsDir?: string } = {}): Router {
   const router = Router();
@@ -36,7 +38,26 @@ export function productRouter(productService: ProductService, options: { uploads
   router.get('/:id', asyncHandler(c.get));
   router.get('/:id/reviews', asyncHandler(c.reviews));
   router.get('/:id/images', staffRoles, asyncHandler(c.listImages));
-  router.post('/:id/images', staffRoles, upload.array('images', 10), asyncHandler(c.uploadImages));
+  router.post(
+    '/:id/images',
+    staffRoles,
+    upload.array('images', 10),
+    asyncHandler(async (req, res, next) => {
+      const files = (req.files as Express.Multer.File[]) ?? [];
+      for (const file of files) {
+        if (isProcessableImage(file.mimetype)) {
+          const processed = await processProductImage(file.path);
+          if (processed) {
+            await writeFile(file.path, processed.buffer);
+            file.mimetype = processed.mimeType;
+            file.originalname = file.originalname.replace(/\.[^.]+$/, processed.extension);
+          }
+        }
+      }
+      next();
+    }),
+    asyncHandler(c.uploadImages),
+  );
   router.delete('/:id/images/:imageId', staffRoles, asyncHandler(c.removeImage));
   router.patch(
     '/:id/images/:imageId',

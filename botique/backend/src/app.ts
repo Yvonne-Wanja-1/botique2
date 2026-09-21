@@ -63,7 +63,7 @@ export function createApp(
 
   const uploadsDir = resolve(process.cwd(), options.uploadsDir ?? 'uploads');
   mkdirSync(uploadsDir, { recursive: true });
-  app.use('/images', express.static(uploadsDir));
+  app.use('/images', express.static(uploadsDir, { maxAge: '1y', immutable: true }));
 
   app.use('/health', healthRouter(pool));
 

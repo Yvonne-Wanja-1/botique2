@@ -9,6 +9,8 @@ import { changePasswordSchema, loginSchema, registerSchema } from '../validation
 import { ValidationError } from '../utils/errors.js';
 import type { AuthService } from '../services/authService.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
+import { processAvatar, isProcessableImage } from '../utils/imageProcessor.js';
+import { writeFile } from 'node:fs/promises';
 
 export function authRouter(
   authService: AuthService,
@@ -37,7 +39,24 @@ export function authRouter(
   router.post('/login', validateBody(loginSchema), asyncHandler(c.login));
   router.get('/me', authenticate, asyncHandler(c.me));
   router.post('/logout', authenticate, asyncHandler(c.logout));
-  router.post('/avatar', authenticate, upload.single('avatar'), asyncHandler(c.updateAvatar));
+  router.post(
+    '/avatar',
+    authenticate,
+    upload.single('avatar'),
+    asyncHandler(async (req, res, next) => {
+      const file = req.file as Express.Multer.File | undefined;
+      if (file && isProcessableImage(file.mimetype)) {
+        const processed = await processAvatar(file.path);
+        if (processed) {
+          await writeFile(file.path, processed.buffer);
+          file.mimetype = processed.mimeType;
+          file.originalname = file.originalname.replace(/\.[^.]+$/, processed.extension);
+        }
+      }
+      next();
+    }),
+    asyncHandler(c.updateAvatar),
+  );
   router.put('/password', authenticate, validateBody(changePasswordSchema), asyncHandler(c.changePassword));
 
   return router;
